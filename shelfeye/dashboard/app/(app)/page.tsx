@@ -121,7 +121,7 @@ export default function OverviewPage() {
                   <div className="row-title">{shelfName(n.node_id)}</div>
                   <div className="row-sub">Last seen {timeAgo(n.last_seen)}</div>
                 </div>
-                {n.live_view_url && (
+                {n.live_view && (
                   <button className="btn btn-soft" onClick={() => setLiveNode(n.node_id)}>
                     <VideoIcon size={16} /> Live
                   </button>

@@ -2,26 +2,18 @@
 
 Run with:  SHELFEYE_DEVICE_TOKEN=change-me uvicorn app:app --host 0.0.0.0 --port 8000
 """
-import logging
-import os
-import secrets
 import sqlite3
 from contextlib import closing
 from datetime import datetime, timezone
 
-import requests
-from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import Depends, FastAPI, Header
 from pydantic import BaseModel
 
-from auth import current_user, router as auth_router
+from auth import check_device_token, current_user, router as auth_router
 from db import connect, init_db
+from live import router as live_router
 from settings import read_settings, router as settings_router
 from shelves import router as shelves_router
-
-log = logging.getLogger("uvicorn.error")
-
-DEVICE_TOKEN = os.environ.get("SHELFEYE_DEVICE_TOKEN", "")
 
 
 class Item(BaseModel):
@@ -46,7 +38,7 @@ class Reading(BaseModel):
 
 
 class Heartbeat(BaseModel):
-    live_view_url: str | None = None
+    live_view: bool = False  # the camera relays its live view through this server
 
 
 init_db()
@@ -54,11 +46,7 @@ app = FastAPI(title="ShelfEye")
 app.include_router(auth_router)
 app.include_router(shelves_router)
 app.include_router(settings_router)
-
-
-def check_device_token(authorization):
-    if not DEVICE_TOKEN or not secrets.compare_digest(authorization, f"Bearer {DEVICE_TOKEN}"):
-        raise HTTPException(status_code=401, detail="Invalid device token")
+app.include_router(live_router)
 
 
 def now_iso():
@@ -70,9 +58,9 @@ def post_heartbeat(node_id: str, heartbeat: Heartbeat, authorization: str = Head
     check_device_token(authorization)
     with closing(connect()) as conn, conn:
         conn.execute(
-            "INSERT INTO nodes (node_id, last_seen, live_view_url) VALUES (?, ?, ?) "
-            "ON CONFLICT(node_id) DO UPDATE SET last_seen = excluded.last_seen, live_view_url = excluded.live_view_url",
-            (node_id, now_iso(), heartbeat.live_view_url),
+            "INSERT INTO nodes (node_id, last_seen, live_view) VALUES (?, ?, ?) "
+            "ON CONFLICT(node_id) DO UPDATE SET last_seen = excluded.last_seen, live_view = excluded.live_view",
+            (node_id, now_iso(), int(heartbeat.live_view)),
         )
         # The camera applies these, so dashboard changes reach it within one heartbeat.
         return {"status": "ok", "settings": read_settings(conn)}
@@ -127,37 +115,5 @@ def get_events(limit: int = 50):
 @app.get("/api/nodes", dependencies=[Depends(current_user)])
 def get_nodes():
     with closing(connect()) as conn:
-        rows = conn.execute("SELECT * FROM nodes ORDER BY node_id").fetchall()
-    return [dict(row) for row in rows]
-
-
-@app.get("/api/nodes/{node_id}/stream", dependencies=[Depends(current_user)])
-def get_stream(node_id: str):
-    """Relay a camera's live view, so viewers never need to reach the Pi directly."""
-    with closing(connect()) as conn:
-        row = conn.execute("SELECT live_view_url FROM nodes WHERE node_id = ?", (node_id,)).fetchone()
-    if not row or not row["live_view_url"]:
-        raise HTTPException(status_code=404, detail="This camera has no live view")
-    try:
-        upstream = requests.get(row["live_view_url"], stream=True, timeout=(5, 30))
-    except requests.RequestException:
-        raise HTTPException(status_code=502, detail="Camera unreachable")
-    if upstream.status_code != 200:
-        upstream.close()
-        raise HTTPException(status_code=503, detail="Camera busy or unavailable")
-
-    def relay():
-        try:
-            # A fixed chunk size; chunk_size=None would wait for the never-ending stream to finish.
-            yield from upstream.iter_content(chunk_size=8192)
-        except requests.RequestException as e:
-            # The dashboard reconnects by itself; one line is enough here.
-            log.warning("Live view from %s stopped: %s", node_id, e.__class__.__name__)
-        finally:
-            upstream.close()  # tells the Pi the viewer left, so counting resumes
-
-    return StreamingResponse(
-        relay(),
-        media_type=upstream.headers.get("Content-Type", "multipart/x-mixed-replace; boundary=FRAME"),
-        headers={"Cache-Control": "no-cache, no-store"},
-    )
+        rows = conn.execute("SELECT node_id, last_seen, live_view FROM nodes ORDER BY node_id").fetchall()
+    return [{**dict(row), "live_view": bool(row["live_view"])} for row in rows]

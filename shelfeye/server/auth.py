@@ -4,6 +4,7 @@ Passwords are hashed with scrypt. A login creates a random session token that
 is kept in an httpOnly cookie; only its SHA-256 hash is stored.
 """
 import hashlib
+import os
 import re
 import secrets
 from contextlib import closing
@@ -20,6 +21,15 @@ MIN_PASSWORD_LENGTH = 8
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 router = APIRouter(prefix="/api/auth")
+
+# Shared by all shelf cameras; set the same value on the server and on each Pi.
+DEVICE_TOKEN = os.environ.get("SHELFEYE_DEVICE_TOKEN", "")
+
+
+def check_device_token(authorization):
+    """For routes only the shelf cameras call."""
+    if not DEVICE_TOKEN or not secrets.compare_digest(authorization, f"Bearer {DEVICE_TOKEN}"):
+        raise HTTPException(status_code=401, detail="Invalid device token")
 
 
 class RegisterBody(BaseModel):

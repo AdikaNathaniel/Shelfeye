@@ -12,7 +12,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ node
     upstream = await fetch(`${apiUrl}/api/nodes/${encodeURIComponent(nodeId)}/stream`, {
       cache: "no-store",
       headers: { cookie: request.headers.get("cookie") ?? "" }, // the server checks the login session
-      signal: request.signal, // closing the live view closes the stream all the way to the Pi
+      signal: request.signal, // closing the live view tells the server, which tells the Pi to stop
     });
   } catch {
     return new Response("ShelfEye server unreachable", { status: 502 });

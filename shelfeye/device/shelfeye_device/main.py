@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .config import DEFAULT_ENV_PATH, load_config
 from .imaging import changed_fraction, fingerprint, jpeg_for_api
-from .live_view import LiveView, local_ip
+from .live_view import LiveView
 from .store import Store
 from .uploader import flush_outbox, send_heartbeat
 from .vision import analyze_image
@@ -85,8 +85,10 @@ def run(cfg, store):
     from .camera import Camera
 
     camera = Camera()
-    if cfg.live_view_port:
-        LiveView(camera, cfg.live_view_port, cfg.live_view_max_minutes).start()
+    if cfg.live_view and cfg.server_url:
+        LiveView(
+            camera, cfg.server_url, cfg.node_id, cfg.device_token, cfg.live_view_max_minutes, cfg.live_view_fps
+        ).start()
     last_analyzed = None  # fingerprint of the last photo we sent to OpenAI
     previous = None  # fingerprint of the photo just before this one
     last_analysis_time = 0.0
@@ -94,9 +96,8 @@ def run(cfg, store):
 
     while True:
         if time.time() - last_heartbeat > HEARTBEAT_SECONDS:
-            ip = local_ip(cfg.server_url)
-            live_view_url = f"http://{ip}:{cfg.live_view_port}/stream.mjpg" if cfg.live_view_port and ip else None
-            settings = send_heartbeat(cfg.server_url, cfg.node_id, cfg.device_token, live_view_url)
+            live_view = cfg.live_view and bool(cfg.server_url)
+            settings = send_heartbeat(cfg.server_url, cfg.node_id, cfg.device_token, live_view)
             apply_server_settings(settings, store)
             last_heartbeat = time.time()
 

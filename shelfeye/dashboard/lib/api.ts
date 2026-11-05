@@ -21,7 +21,7 @@ export type StockEvent = {
 export type ShelfNode = {
   node_id: string;
   last_seen: string;
-  live_view_url: string | null;
+  live_view: boolean; // the camera relays a live view through the server
 };
 
 /** A shelf set up on the Settings page, optionally watched by one camera. */

@@ -19,7 +19,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS nodes (
                 node_id TEXT PRIMARY KEY,
                 last_seen TEXT NOT NULL,
-                live_view_url TEXT
+                live_view INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS readings (
                 reading_id TEXT PRIMARY KEY,
@@ -69,8 +69,9 @@ def init_db():
             );
             """
         )
-        # Databases created before live view existed lack this column.
+        # Databases from older versions lack this column. (Their unused
+        # live_view_url column is from before live view went through the server.)
         columns = [row["name"] for row in conn.execute("PRAGMA table_info(nodes)")]
-        if "live_view_url" not in columns:
-            conn.execute("ALTER TABLE nodes ADD COLUMN live_view_url TEXT")
-            conn.commit()
+        if "live_view" not in columns:
+            conn.execute("ALTER TABLE nodes ADD COLUMN live_view INTEGER NOT NULL DEFAULT 0")
+        conn.commit()

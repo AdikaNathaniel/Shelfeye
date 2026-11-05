@@ -1,14 +1,14 @@
 """Thin wrapper around Picamera2 for the Raspberry Pi Camera Module 3.
 
 The camera is shared by the counting loop (still photos) and the live view
-(an MJPEG video stream). While live view is on, still captures are refused.
+(MJPEG video frames sent to the server). While live view is on, still captures are refused.
 """
 import threading
 import time
 
 
 class Camera:
-    def __init__(self, size=(2304, 1296), preview_size=(1280, 720)):
+    def __init__(self, size=(2304, 1296), preview_size=(960, 540)):
         # Imported here so the rest of the app can run on a laptop without a camera.
         from libcamera import ColorSpace
         from picamera2 import Picamera2

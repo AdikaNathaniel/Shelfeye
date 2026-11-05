@@ -47,12 +47,12 @@ export default function CamerasPage() {
                 <div className="camera-stat"><div>Products</div><div>{products.length}</div></div>
                 <div className="camera-stat"><div>Need restocking</div><div style={{ color: low ? "var(--out)" : undefined }}>{low}</div></div>
               </div>
-              {n.live_view_url ? (
+              {n.live_view ? (
                 <button className="btn btn-primary" onClick={() => setLiveNode(n.node_id)}>
                   <VideoIcon size={16} /> Open live view
                 </button>
               ) : (
-                <button className="btn" disabled title="This camera hasn't reported a live view address yet">
+                <button className="btn" disabled title="Live view is turned off on this camera, or it runs older ShelfEye software">
                   Live view unavailable
                 </button>
               )}

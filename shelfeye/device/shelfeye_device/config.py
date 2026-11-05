@@ -36,7 +36,8 @@ class Config:
     change_threshold: float
     recheck_minutes: int
     keep_images_days: int
-    live_view_port: int
+    live_view: bool
+    live_view_fps: float
     live_view_max_minutes: int
 
 
@@ -70,6 +71,9 @@ def load_config(env_path=DEFAULT_ENV_PATH):
         change_threshold=float(get("CHANGE_THRESHOLD", "0.01")),
         recheck_minutes=int(get("RECHECK_MINUTES", "30")),
         keep_images_days=int(get("KEEP_IMAGES_DAYS", "365")),
-        live_view_port=int(get("LIVE_VIEW_PORT", "8080")),
+        # LIVE_VIEW_PORT=0 is how older config files turned live view off.
+        live_view=get("LIVE_VIEW", "off" if get("LIVE_VIEW_PORT") == "0" else "on").lower()
+        not in ("off", "0", "false", "no"),
+        live_view_fps=float(get("LIVE_VIEW_FPS", "2")),
         live_view_max_minutes=int(get("LIVE_VIEW_MAX_MINUTES", "10")),
     )

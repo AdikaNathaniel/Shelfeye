@@ -1,26 +1,29 @@
-"""Live view: an MJPEG stream of the camera, served on demand.
+"""Live view, sent to the server so it works from anywhere.
 
-The camera only switches to video when the first viewer connects and goes
-back to counting when the last one leaves. Each viewing session is capped so
-a forgotten browser tab can't stop counting for good.
+The Pi is usually behind a router (or a phone hotspot) that the server can't
+reach, so the Pi makes every connection itself:
+  1. It keeps asking the server "is anyone watching?" (each request is held
+     open for up to 25 s, so a viewer is noticed within a second or two).
+  2. When someone is, it switches the camera to video and uploads a few JPEG
+     frames a second, until the last viewer leaves or the time limit is hit.
+  3. Then it switches back to stills, and counting resumes.
 """
 import io
 import logging
-import socket
 import threading
 import time
-from http import server
-from socketserver import ThreadingMixIn
-from urllib.parse import urlparse
+
+import requests
 
 log = logging.getLogger(__name__)
 
-MAX_VIEWERS = 3  # the Pi Zero can't serve many streams at once
-NO_FRAME_SECONDS = 15  # give up on a stream if the camera stops producing frames
+NO_FRAME_SECONDS = 15  # give up if the camera stops producing video
+RETRY_SECONDS = 10  # after the server couldn't be reached
+LIMIT_COOLDOWN_SECONDS = 30  # pause after the time limit before streaming again
 
 
 class FrameBuffer(io.BufferedIOBase):
-    """Holds the latest JPEG frame and wakes up every connected viewer."""
+    """Holds the latest JPEG frame from the camera's video encoder."""
 
     def __init__(self):
         self.frame = None
@@ -33,95 +36,67 @@ class FrameBuffer(io.BufferedIOBase):
         return len(buf)
 
 
-class _Server(ThreadingMixIn, server.HTTPServer):
-    allow_reuse_address = True
-    daemon_threads = True
-
-
 class LiveView:
-    def __init__(self, camera, port, max_minutes):
+    def __init__(self, camera, server_url, node_id, token, max_minutes, fps):
         self.camera = camera
-        self.port = port
+        self.base_url = f"{server_url}/api/nodes/{node_id}/live"
+        self.headers = {"Authorization": f"Bearer {token}"}
         self.max_seconds = max_minutes * 60
+        self.interval = 1 / max(fps, 0.2)
         self.frames = FrameBuffer()
-        self.viewers = 0
-        self._lock = threading.Lock()
-
-    def _join(self):
-        with self._lock:
-            if self.viewers >= MAX_VIEWERS:
-                return False
-            if self.viewers == 0:
-                log.info("Live view started, counting paused")
-                self.camera.start_preview(self.frames)
-            self.viewers += 1
-            return True
-
-    def _leave(self):
-        with self._lock:
-            self.viewers -= 1
-            if self.viewers == 0:
-                self.camera.stop_preview()
-                log.info("Live view ended, counting resumed")
 
     def start(self):
-        live_view = self
+        threading.Thread(target=self._run, daemon=True, name="live-view").start()
+        log.info("Live view ready, sent through %s", self.base_url.split("/api/")[0])
 
-        class Handler(server.BaseHTTPRequestHandler):
-            def do_GET(self):
-                if self.path != "/stream.mjpg":
-                    self.send_error(404)
-                    return
-                try:
-                    joined = live_view._join()
-                except Exception:
-                    log.exception("Could not start live view")
-                    self.send_error(503, "Camera unavailable")
-                    return
-                if not joined:
-                    self.send_error(503, "Too many viewers")
-                    return
-                try:
-                    live_view._stream(self)
-                finally:
-                    live_view._leave()
+    def _run(self):
+        session = requests.Session()
+        session.headers.update(self.headers)
+        while True:
+            try:
+                response = session.get(f"{self.base_url}/wait", timeout=40)
+                response.raise_for_status()
+                if response.json().get("watching"):
+                    self._stream(session)
+            except (requests.RequestException, ValueError) as exc:
+                log.warning("Live view: server unreachable, will retry: %s", exc)
+                time.sleep(RETRY_SECONDS)
+            except Exception:
+                log.exception("Live view failed, will retry")
+                time.sleep(RETRY_SECONDS)
 
-            def log_message(self, *args):
-                pass  # keep the service log quiet
-
-        httpd = _Server(("", self.port), Handler)
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        log.info("Live view available on port %d", self.port)
-
-    def _stream(self, handler):
-        handler.send_response(200)
-        handler.send_header("Cache-Control", "no-cache, private")
-        handler.send_header("Content-Type", "multipart/x-mixed-replace; boundary=FRAME")
-        handler.end_headers()
-        started = time.monotonic()
+    def _stream(self, session):
+        log.info("Live view started, counting paused")
+        self.frames.frame = None
+        self.camera.start_preview(self.frames)
         try:
+            started = time.monotonic()
+            sent = None
             while time.monotonic() - started < self.max_seconds:
+                next_send = time.monotonic() + self.interval
                 with self.frames.condition:
-                    if not self.frames.condition.wait(timeout=NO_FRAME_SECONDS):
+                    has_new = self.frames.condition.wait_for(
+                        lambda: self.frames.frame is not None and self.frames.frame is not sent,
+                        timeout=NO_FRAME_SECONDS,
+                    )
+                    if not has_new:
                         log.warning("Camera sent no video for %d s, ending live view", NO_FRAME_SECONDS)
                         return
-                    frame = self.frames.frame
-                handler.wfile.write(b"--FRAME\r\n")
-                handler.send_header("Content-Type", "image/jpeg")
-                handler.send_header("Content-Length", str(len(frame)))
-                handler.end_headers()
-                handler.wfile.write(frame)
-                handler.wfile.write(b"\r\n")
-        except ConnectionError:
-            pass  # viewer closed the page
-
-
-def local_ip(server_url):
-    """The Pi's address on the network it uses to reach the server."""
-    host = urlparse(server_url).hostname or "8.8.8.8"
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        try:
-            s.connect((host, 80))  # no packets are sent; this just picks the route
-            return s.getsockname()[0]
-        except OSError:
-            return None
+                    sent = self.frames.frame
+                response = session.post(
+                    f"{self.base_url}/frame",
+                    data=bytes(sent),
+                    headers={"Content-Type": "image/jpeg"},
+                    timeout=15,
+                )
+                response.raise_for_status()
+                if not response.json().get("watching"):
+                    return  # the last viewer closed the live view
+                time.sleep(max(0.0, next_send - time.monotonic()))
+            log.info("Live view reached its %d-minute limit", self.max_seconds // 60)
+        finally:
+            self.camera.stop_preview()
+            log.info("Live view ended, counting resumed")
+        # The dashboard closes its view at the same limit; don't restart for a viewer
+        # that is about to leave, so counting gets a chance to run.
+        time.sleep(LIMIT_COOLDOWN_SECONDS)

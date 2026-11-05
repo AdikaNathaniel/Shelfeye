@@ -96,7 +96,7 @@ export default function LiveView({ nodeId, onClose }: { nodeId: string; onClose:
           {state === "retrying" && (
             <p className="live-message">
               <span className="spinner" /> Waiting for the camera, trying again in a moment…
-              {failures >= 3 && <> Make sure it&apos;s powered on and on the same network as the server.</>}{" "}
+              {failures >= 3 && <> Make sure it&apos;s powered on and connected to the internet.</>}{" "}
               <button className="link" onClick={reconnect}>Retry now</button>
             </p>
           )}

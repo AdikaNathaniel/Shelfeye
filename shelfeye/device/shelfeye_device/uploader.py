@@ -6,8 +6,8 @@ import requests
 log = logging.getLogger(__name__)
 
 
-def send_heartbeat(server_url, node_id, token, live_view_url):
-    """Tell the server this camera is alive and where its live view is.
+def send_heartbeat(server_url, node_id, token, live_view):
+    """Tell the server this camera is alive and whether it offers live view.
 
     Returns the settings from the dashboard, or None if the server couldn't be reached.
     """
@@ -16,7 +16,7 @@ def send_heartbeat(server_url, node_id, token, live_view_url):
     try:
         response = requests.post(
             f"{server_url}/api/nodes/{node_id}/heartbeat",
-            json={"live_view_url": live_view_url},
+            json={"live_view": live_view},
             headers={"Authorization": f"Bearer {token}"},
             timeout=10,
         )
