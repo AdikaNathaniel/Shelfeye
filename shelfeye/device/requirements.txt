@@ -1,0 +1,3 @@
+# For running/testing on a laptop. On the Pi, install these with apt instead (see README).
+requests
+pillow

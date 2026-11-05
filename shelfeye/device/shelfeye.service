@@ -1,0 +1,15 @@
+[Unit]
+Description=ShelfEye shelf camera
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Change User and paths if your Pi user is not "pi"
+User=pi
+WorkingDirectory=/home/pi/shelfeye/device
+ExecStart=/usr/bin/python3 -m shelfeye_device --config /etc/shelfeye/shelfeye.env
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

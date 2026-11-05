@@ -1,0 +1,36 @@
+# Secrets: the real device config holds the OpenAI key and device token.
+# Commit shelfeye.env.example instead.
+shelfeye.env
+*.env
+.env
+.env.local
+.env.*.local
+!*.env.example
+!.env.example
+
+# Server database: user accounts, sessions and stock data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Device data folder (photos and local database) when testing on a laptop
+shelfeye-data/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Next.js dashboard
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Editors and OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
