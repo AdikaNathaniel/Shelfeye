@@ -155,10 +155,6 @@ function ShelvesCard() {
             <PlusIcon size={16} /> Add shelf
           </button>
         </form>
-        <p className="field-hint shelf-hint">
-          Leave the name empty to call it &ldquo;{placeholder}&rdquo;. A camera shows up in the list after its first check-in; its ID is
-          {" "}<code>SHELFEYE_NODE_ID</code> on the Pi.
-        </p>
 
         {!shelves.length ? (
           <EmptyState icon={<BoxIcon />} title="No shelves yet">

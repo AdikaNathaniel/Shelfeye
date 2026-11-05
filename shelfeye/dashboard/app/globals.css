@@ -321,10 +321,8 @@ td.num { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; 
 
 /* ---------- Settings ---------- */
 .settings { display: grid; gap: 18px; max-width: 860px; }
-.shelf-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px) auto; gap: 10px; }
+.shelf-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px) auto; gap: 10px; margin-bottom: 14px; }
 .shelf-add .input { height: 36px; }
-.shelf-hint { margin: 8px 0 14px; }
-.shelf-hint code { font-size: 11.5px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
 .shelf-row { gap: 10px; }
 .shelf-number { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
 .shelf-row .shelf-name { flex: 1; min-width: 0; height: 36px; }
@@ -342,3 +340,16 @@ td.num { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; 
   .shelf-row .shelf-name { flex-basis: calc(100% - 36px); }
   .shelf-row .select { flex: 1; width: auto; }
 }
+
+/* ---------- Inventory, one section per shelf ---------- */
+.inventory { display: grid; gap: 18px; }
+.inventory > .card:first-child .toolbar { padding-bottom: 16px; }
+.shelf-section .tag { display: inline-flex; align-items: center; gap: 5px; }
+.shelf-section .empty { padding: 8px 16px 24px; }
+.shelf-section .empty.small { padding: 18px 16px 22px; }
+/* Same column widths in every shelf, so the sections line up */
+.shelf-section table { table-layout: fixed; min-width: 560px; }
+.shelf-section th:nth-child(2) { width: 22%; }
+.shelf-section th:nth-child(3) { width: 12%; }
+.shelf-section th:nth-child(4) { width: 20%; }
+.shelf-section td.product { min-width: 0; }
