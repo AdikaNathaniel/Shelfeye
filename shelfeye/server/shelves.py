@@ -4,15 +4,17 @@ A shelf is a name ("Shelf 1", "Drinks aisle") plus, optionally, the camera
 (node_id) that watches it. The dashboard uses the list for its shelf filters
 and shows shelf names in place of camera IDs.
 """
-import sqlite3
-from contextlib import closing
 from datetime import datetime, timezone
 
+from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
+from pymongo import ASCENDING, ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 from auth import current_user
-from db import connect
+from db import api_doc, database
 
 MAX_NAME_LENGTH = 60
 
@@ -42,59 +44,74 @@ def _clean_node_id(node_id):
     return (node_id or "").strip() or None  # empty means "no camera"
 
 
-def _save(conn, sql, params):
-    """Run an insert/update, turning unique-constraint clashes into a clear message."""
+def _clash(node_id, shelf_id=None):
+    """Explain a unique-index clash: the camera is taken, or else the name is."""
+    if node_id and database().shelves.find_one({"node_id": node_id, "_id": {"$ne": shelf_id}}, {"_id": 1}):
+        detail = "That camera is already assigned to another shelf."
+    else:
+        detail = "A shelf with that name already exists."
+    return HTTPException(status_code=409, detail=detail)
+
+
+def _object_id(shelf_id):
     try:
-        return conn.execute(sql, params)
-    except sqlite3.IntegrityError as e:
-        if "node_id" in str(e):
-            detail = "That camera is already assigned to another shelf."
-        else:
-            detail = "A shelf with that name already exists."
-        raise HTTPException(status_code=409, detail=detail)
-
-
-def _get(conn, shelf_id):
-    row = conn.execute("SELECT * FROM shelves WHERE id = ?", (shelf_id,)).fetchone()
-    if not row:
+        return ObjectId(shelf_id)
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=404, detail="Shelf not found")
-    return dict(row)
+
+
+def _shelf(doc):
+    if not doc:
+        raise HTTPException(status_code=404, detail="Shelf not found")
+    doc = api_doc(doc, id_field="id")
+    doc.pop("name_key", None)
+    return doc
 
 
 @router.get("")
 def list_shelves():
-    with closing(connect()) as conn:
-        rows = conn.execute("SELECT * FROM shelves ORDER BY id").fetchall()
-    return [dict(row) for row in rows]
+    return [_shelf(doc) for doc in database().shelves.find().sort("_id", ASCENDING)]  # oldest first
 
 
 @router.post("", status_code=201)
 def create_shelf(body: ShelfBody):
-    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    with closing(connect()) as conn, conn:
-        cursor = _save(
-            conn,
-            "INSERT INTO shelves (name, node_id, created_at) VALUES (?, ?, ?)",
-            (_clean_name(body.name), _clean_node_id(body.node_id), created_at),
-        )
-        return _get(conn, cursor.lastrowid)
+    name = _clean_name(body.name)
+    shelf = {
+        "name": name,
+        "name_key": name.lower(),
+        "node_id": _clean_node_id(body.node_id),
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    try:
+        database().shelves.insert_one(shelf)
+    except DuplicateKeyError:
+        raise _clash(shelf["node_id"])
+    return _shelf(shelf)
 
 
 @router.patch("/{shelf_id}")
-def update_shelf(shelf_id: int, body: ShelfUpdate):
+def update_shelf(shelf_id: str, body: ShelfUpdate):
+    changes = {}
     sent = body.model_fields_set  # node_id: null means "remove the camera", so check what was sent
-    with closing(connect()) as conn, conn:
-        shelf = _get(conn, shelf_id)
-        name = _clean_name(body.name) if "name" in sent and body.name is not None else shelf["name"]
-        node_id = _clean_node_id(body.node_id) if "node_id" in sent else shelf["node_id"]
-        _save(conn, "UPDATE shelves SET name = ?, node_id = ? WHERE id = ?", (name, node_id, shelf_id))
-        return _get(conn, shelf_id)
+    if "name" in sent and body.name is not None:
+        changes["name"] = _clean_name(body.name)
+        changes["name_key"] = changes["name"].lower()
+    if "node_id" in sent:
+        changes["node_id"] = _clean_node_id(body.node_id)
+    shelves = database().shelves
+    _id = _object_id(shelf_id)
+    if not changes:
+        return _shelf(shelves.find_one({"_id": _id}))
+    try:
+        doc = shelves.find_one_and_update({"_id": _id}, {"$set": changes}, return_document=ReturnDocument.AFTER)
+    except DuplicateKeyError:
+        raise _clash(changes.get("node_id"), _id)
+    return _shelf(doc)
 
 
 @router.delete("/{shelf_id}", status_code=204)
-def delete_shelf(shelf_id: int):
+def delete_shelf(shelf_id: str):
     # The camera's stock stays; it just shows under its camera ID again.
-    with closing(connect()) as conn, conn:
-        _get(conn, shelf_id)
-        conn.execute("DELETE FROM shelves WHERE id = ?", (shelf_id,))
+    if not database().shelves.delete_one({"_id": _object_id(shelf_id)}).deleted_count:
+        raise HTTPException(status_code=404, detail="Shelf not found")
     return Response(status_code=204)

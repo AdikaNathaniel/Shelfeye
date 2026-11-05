@@ -1,4 +1,5 @@
 // Types and helpers for the ShelfEye server API (see server/app.py and server/auth.py).
+// Ids are MongoDB ids, so they are strings.
 
 export type InventoryRow = {
   node_id: string;
@@ -9,7 +10,7 @@ export type InventoryRow = {
 };
 
 export type StockEvent = {
-  id: number;
+  id: string;
   node_id: string;
   name: string;
   previous: number;
@@ -26,7 +27,7 @@ export type ShelfNode = {
 
 /** A shelf set up on the Settings page, optionally watched by one camera. */
 export type Shelf = {
-  id: number;
+  id: string;
   name: string;
   node_id: string | null;
   created_at: string;
@@ -91,9 +92,9 @@ export async function fetchDashboard(): Promise<DashboardData> {
 }
 
 export const createShelf = (name: string, node_id: string | null) => postJson<Shelf>("/api/shelves", { name, node_id });
-export const updateShelf = (id: number, changes: { name?: string; node_id?: string | null }) =>
+export const updateShelf = (id: string, changes: { name?: string; node_id?: string | null }) =>
   sendJson<Shelf>("PATCH", `/api/shelves/${id}`, changes);
-export const deleteShelf = (id: number) => sendJson<void>("DELETE", `/api/shelves/${id}`);
+export const deleteShelf = (id: string) => sendJson<void>("DELETE", `/api/shelves/${id}`);
 
 /** Settings the cameras pick up on their next heartbeat (within 5 minutes). */
 export type Settings = {

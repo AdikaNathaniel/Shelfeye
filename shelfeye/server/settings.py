@@ -3,13 +3,11 @@
 Cameras receive these in the reply to their heartbeat (every 5 minutes) and
 keep the last values on their SD card, so they still apply when offline.
 """
-from contextlib import closing
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from auth import current_user
-from db import connect
+from db import database
 
 DEFAULT_KEEP_IMAGES_DAYS = 365
 MAX_KEEP_IMAGES_DAYS = 3650
@@ -21,15 +19,14 @@ class SettingsUpdate(BaseModel):
     keep_images_days: int
 
 
-def read_settings(conn):
-    row = conn.execute("SELECT value FROM settings WHERE key = 'keep_images_days'").fetchone()
-    return {"keep_images_days": int(row["value"]) if row else DEFAULT_KEEP_IMAGES_DAYS}
+def read_settings(db):
+    doc = db.settings.find_one({"_id": "keep_images_days"})
+    return {"keep_images_days": int(doc["value"]) if doc else DEFAULT_KEEP_IMAGES_DAYS}
 
 
 @router.get("")
 def get_settings():
-    with closing(connect()) as conn:
-        return read_settings(conn)
+    return read_settings(database())
 
 
 @router.patch("")
@@ -37,10 +34,6 @@ def update_settings(body: SettingsUpdate):
     days = body.keep_images_days
     if not 1 <= days <= MAX_KEEP_IMAGES_DAYS:
         raise HTTPException(status_code=400, detail=f"Enter a number of days from 1 to {MAX_KEEP_IMAGES_DAYS}.")
-    with closing(connect()) as conn, conn:
-        conn.execute(
-            "INSERT INTO settings (key, value) VALUES ('keep_images_days', ?) "
-            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            (str(days),),
-        )
-        return read_settings(conn)
+    db = database()
+    db.settings.update_one({"_id": "keep_images_days"}, {"$set": {"value": days}}, upsert=True)
+    return read_settings(db)

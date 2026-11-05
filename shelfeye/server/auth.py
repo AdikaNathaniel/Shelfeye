@@ -1,21 +1,22 @@
 """User accounts for the dashboard: register, log in, log out.
 
-Accounts live in MongoDB (users_db.py); login sessions live in SQLite.
-Passwords are hashed with scrypt. A login creates a random session token that
-is kept in an httpOnly cookie; only its SHA-256 hash is stored.
+Accounts and sessions live in MongoDB (see db.py). Passwords are hashed with
+scrypt. A login creates a random session token that is kept in an httpOnly
+cookie; only its SHA-256 hash is stored.
 """
 import hashlib
 import os
 import re
 import secrets
-from contextlib import closing
 from datetime import datetime, timedelta, timezone
 
+from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel
+from pymongo.errors import DuplicateKeyError
 
-import users_db
-from db import connect
+from db import database
 
 COOKIE_NAME = "shelfeye_session"
 SESSION_DAYS = 30
@@ -68,14 +69,20 @@ def _now():
     return datetime.now(timezone.utc)
 
 
+def public_user(user):
+    """The fields the dashboard may see."""
+    return {"id": str(user["_id"]), "name": user["name"], "email": user["email"]}
+
+
+def find_user_by_email(email):
+    return database().users.find_one({"email": email.strip().lower()})
+
+
 def _start_session(response, user_id):
     token = secrets.token_urlsafe(32)
-    expires_at = (_now() + timedelta(days=SESSION_DAYS)).isoformat(timespec="seconds")
-    with closing(connect()) as conn, conn:
-        conn.execute(
-            "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
-            (_token_hash(token), user_id, expires_at),
-        )
+    database().sessions.insert_one(
+        {"_id": _token_hash(token), "user_id": user_id, "expires_at": _now() + timedelta(days=SESSION_DAYS)}
+    )
     response.set_cookie(
         COOKIE_NAME, token, max_age=SESSION_DAYS * 86400, httponly=True, samesite="lax", path="/"
     )
@@ -85,16 +92,17 @@ def current_user(shelfeye_session: str | None = Cookie(None)):
     """Dependency for routes that need a logged-in user."""
     if not shelfeye_session:
         raise HTTPException(status_code=401, detail="Please log in")
-    with closing(connect()) as conn:
-        row = conn.execute(
-            "SELECT user_id, expires_at FROM sessions WHERE token_hash = ?", (_token_hash(shelfeye_session),)
-        ).fetchone()
-    if not row or row["expires_at"] < _now().isoformat(timespec="seconds"):
-        raise HTTPException(status_code=401, detail="Your session has expired, please log in again")
-    user = users_db.find_by_id(row["user_id"])
+    db = database()
+    session = db.sessions.find_one({"_id": _token_hash(shelfeye_session)})
+    user = None
+    if session and session["expires_at"] > _now():
+        try:
+            user = db.users.find_one({"_id": ObjectId(session["user_id"])})
+        except (InvalidId, TypeError):
+            pass
     if not user:
         raise HTTPException(status_code=401, detail="Your session has expired, please log in again")
-    return users_db.public(user)
+    return public_user(user)
 
 
 @router.post("/register", status_code=201)
@@ -108,31 +116,34 @@ def register(body: RegisterBody, response: Response):
     if len(body.password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(status_code=400, detail=f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
 
+    user = {
+        "name": name,
+        "email": email,
+        "password_hash": hash_password(body.password),
+        "created_at": _now().isoformat(timespec="seconds"),
+    }
     try:
-        user_id = users_db.create_user(name, email, hash_password(body.password), _now().isoformat(timespec="seconds"))
-    except users_db.EmailTaken:
+        database().users.insert_one(user)  # sets user["_id"]
+    except DuplicateKeyError:
         raise HTTPException(status_code=409, detail="An account with this email already exists")
-    _start_session(response, user_id)
-    return {"id": user_id, "name": name, "email": email}
+    _start_session(response, str(user["_id"]))
+    return public_user(user)
 
 
 @router.post("/login")
 def login(body: LoginBody, response: Response):
-    email = body.email.strip().lower()
-    user = users_db.find_by_email(email)
+    user = find_user_by_email(body.email)
     # Same message either way, so the form doesn't reveal which emails have accounts.
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
-    user_id = str(user["_id"])
-    _start_session(response, user_id)
-    return users_db.public(user)
+    _start_session(response, str(user["_id"]))
+    return public_user(user)
 
 
 @router.post("/logout")
 def logout(response: Response, shelfeye_session: str | None = Cookie(None)):
     if shelfeye_session:
-        with closing(connect()) as conn, conn:
-            conn.execute("DELETE FROM sessions WHERE token_hash = ?", (_token_hash(shelfeye_session),))
+        database().sessions.delete_one({"_id": _token_hash(shelfeye_session)})
     response.delete_cookie(COOKIE_NAME, path="/")
     return {"status": "ok"}
 

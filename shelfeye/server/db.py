@@ -1,70 +1,61 @@
-"""SQLite storage for the ShelfEye server."""
+"""MongoDB storage for the ShelfEye server.
+
+Everything lives in MongoDB, so redeploying or restarting the server loses nothing.
+Set MONGODB_URI to the cluster's connection string (password filled in);
+MONGODB_DB picks the database (default "shelfeye").
+
+Collections:
+  users      {_id, name, email, password_hash, created_at}       dashboard accounts
+  sessions   {_id: token hash, user_id, expires_at}              logins (removed by MongoDB once expired)
+  nodes      {_id: node_id, last_seen, live_view}                cameras
+  readings   {_id: reading_id, node_id, captured_at, image, received_at}
+  inventory  {node_id, name, count, label_text, updated_at}      latest count per product
+  events     {_id: "<reading_id>:<name>", node_id, name, previous, current, delta, captured_at}
+  shelves    {_id, name, name_key, node_id, created_at}
+  settings   {_id: key, value}
+"""
 import os
-import sqlite3
-from contextlib import closing
+import threading
 
-DB_PATH = os.environ.get("SHELFEYE_DB", "shelfeye.db")
+from fastapi import HTTPException
+from pymongo import ASCENDING, DESCENDING, MongoClient
+
+MONGODB_URI = os.environ.get("MONGODB_URI", "")
+MONGODB_DB = os.environ.get("MONGODB_DB", "shelfeye")
+
+_lock = threading.Lock()
+_database = None
 
 
-def connect():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def database():
+    """The ShelfEye database, connected (and indexes created) on first use."""
+    global _database
+    with _lock:
+        if _database is None:
+            if not MONGODB_URI:
+                raise HTTPException(status_code=503, detail="The server's database isn't set up (MONGODB_URI is missing).")
+            client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=10_000, tz_aware=True, appname="shelfeye")
+            db = client[MONGODB_DB]
+            _create_indexes(db)
+            _database = db
+        return _database
 
 
-def init_db():
-    with closing(connect()) as conn:
-        conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS nodes (
-                node_id TEXT PRIMARY KEY,
-                last_seen TEXT NOT NULL,
-                live_view INTEGER NOT NULL DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS readings (
-                reading_id TEXT PRIMARY KEY,
-                node_id TEXT NOT NULL,
-                captured_at TEXT NOT NULL,
-                image TEXT NOT NULL,
-                received_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS inventory (
-                node_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                count INTEGER NOT NULL,
-                label_text TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (node_id, name)
-            );
-            CREATE TABLE IF NOT EXISTS sessions (
-                token_hash TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,  -- a MongoDB user id (see users_db.py)
-                expires_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                node_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                previous INTEGER NOT NULL,
-                current INTEGER NOT NULL,
-                delta INTEGER NOT NULL,
-                captured_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS shelves (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                node_id TEXT UNIQUE,
-                created_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-            """
-        )
-        # Databases from older versions lack this column. (Their unused
-        # live_view_url column is from before live view went through the server.)
-        columns = [row["name"] for row in conn.execute("PRAGMA table_info(nodes)")]
-        if "live_view" not in columns:
-            conn.execute("ALTER TABLE nodes ADD COLUMN live_view INTEGER NOT NULL DEFAULT 0")
-        conn.commit()
+def _create_indexes(db):
+    db.users.create_index("email", unique=True)
+    db.sessions.create_index("expires_at", expireAfterSeconds=0)
+    db.inventory.create_index([("node_id", ASCENDING), ("name", ASCENDING)], unique=True)
+    db.events.create_index([("captured_at", DESCENDING)])
+    # Shelf names are unique ignoring case (name_key is the lowercased name);
+    # each camera belongs to at most one shelf.
+    db.shelves.create_index("name_key", unique=True)
+    db.shelves.create_index("node_id", unique=True, partialFilterExpression={"node_id": {"$type": "string"}})
+
+
+def api_doc(doc, id_field=None):
+    """A document as the API returns it: `_id` dropped, or returned as a string under `id_field`."""
+    doc = dict(doc)
+    _id = doc.pop("_id")
+    if id_field:
+        doc[id_field] = str(_id)
+    return doc

@@ -27,7 +27,7 @@ Pi Zero W + Camera Module 3                         Server                Dashbo
 ## Folders
 
 - `device/` runs on the Pi
-- `server/` holds the API that the Pis post readings to (FastAPI + SQLite)
+- `server/` holds the API that the Pis post readings to (FastAPI + MongoDB)
 - `dashboard/` holds the web dashboard (Next.js)
 
 ## Run the server
@@ -35,8 +35,13 @@ Pi Zero W + Camera Module 3                         Server                Dashbo
 ```bash
 cd server
 pip install -r requirements.txt
+export MONGODB_URI='mongodb+srv://<user>:<password>@<cluster>.mongodb.net/'   # MongoDB Atlas connection string
 SHELFEYE_DEVICE_TOKEN=change-me uvicorn app:app --host 0.0.0.0 --port 8000
 ```
+
+All data (accounts, stock, activity, cameras, shelves, settings) is stored in
+MongoDB, in the database named by `MONGODB_DB` (default `shelfeye`). Run a
+single server process: live view frames are passed through memory.
 
 ## Run the dashboard
 
