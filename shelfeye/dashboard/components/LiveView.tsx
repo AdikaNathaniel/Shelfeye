@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { LIVE_VIEW_MAX_MINUTES } from "@/lib/api";
 import { useShelfName } from "./DataProvider";
 
-type State = "connecting" | "watching" | "retrying" | "timed-out";
+type State = "connecting" | "watching" | "retrying" | "gave-up" | "timed-out";
 
 const FIRST_FRAME_TIMEOUT_MS = 20_000; // the Pi needs a few seconds to switch to video
-const RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 15_000]; // the last one repeats
+const RETRY_DELAYS_MS = [2_000, 4_000, 8_000];
+// Each attempt pauses counting on the shelf, so a forgotten window must not retry forever.
+const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
 
 export default function LiveView({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
   const [state, setState] = useState<State>("connecting");
@@ -32,7 +34,7 @@ export default function LiveView({ nodeId, onClose }: { nodeId: string; onClose:
         setFailures(0);
         setState("watching");
       } else if (Date.now() - started > FIRST_FRAME_TIMEOUT_MS) {
-        setState("retrying");
+        fail();
       }
     }, 500);
     return () => clearInterval(poll);
@@ -41,7 +43,7 @@ export default function LiveView({ nodeId, onClose }: { nodeId: string; onClose:
   // After a failed attempt, wait a little longer each time, then try again.
   useEffect(() => {
     if (state !== "retrying") return;
-    const delay = RETRY_DELAYS_MS[Math.min(failures, RETRY_DELAYS_MS.length - 1)];
+    const delay = RETRY_DELAYS_MS[Math.min(failures - 1, RETRY_DELAYS_MS.length - 1)];
     const timer = setTimeout(() => reconnect(), delay);
     return () => clearTimeout(timer);
   }, [state, failures]);
@@ -54,8 +56,9 @@ export default function LiveView({ nodeId, onClose }: { nodeId: string; onClose:
   }, [state, attempt]);
 
   function fail() {
-    setFailures((n) => n + 1);
-    setState("retrying");
+    const n = failures + 1;
+    setFailures(n);
+    setState(n >= MAX_ATTEMPTS ? "gave-up" : "retrying");
   }
 
   function reconnect() {
@@ -95,9 +98,14 @@ export default function LiveView({ nodeId, onClose }: { nodeId: string; onClose:
           )}
           {state === "retrying" && (
             <p className="live-message">
-              <span className="spinner" /> Waiting for the camera, trying again in a moment…
-              {failures >= 3 && <> Make sure it&apos;s powered on and connected to the internet.</>}{" "}
+              <span className="spinner" /> Waiting for the camera, trying again in a moment…{" "}
               <button className="link" onClick={reconnect}>Retry now</button>
+            </p>
+          )}
+          {state === "gave-up" && (
+            <p className="live-message">
+              Couldn&apos;t reach the camera. Make sure it&apos;s powered on and connected to the internet.{" "}
+              <button className="link" onClick={() => { setFailures(0); reconnect(); }}>Try again</button>
             </p>
           )}
           {state === "timed-out" && (

@@ -17,6 +17,7 @@ from .vision import analyze_image
 log = logging.getLogger("shelfeye")
 
 HEARTBEAT_SECONDS = 5 * 60
+SETTLE_SECONDS = 10  # gap between a photo that shows a change and the one that confirms it
 
 
 def now_iso():
@@ -90,7 +91,6 @@ def run(cfg, store):
             camera, cfg.server_url, cfg.node_id, cfg.device_token, cfg.live_view_max_minutes, cfg.live_view_fps
         ).start()
     last_analyzed = None  # fingerprint of the last photo we sent to OpenAI
-    previous = None  # fingerprint of the photo just before this one
     last_analysis_time = 0.0
     last_heartbeat = 0.0
 
@@ -101,33 +101,43 @@ def run(cfg, store):
             apply_server_settings(settings, store)
             last_heartbeat = time.time()
 
+        reason = None
         path = new_image_path(cfg.data_dir)
-        if not camera.capture(path):
-            # Live view has the camera. It may also have been re-aimed, so
-            # start change detection afresh once counting resumes.
-            previous = None
-            time.sleep(5)
+        if camera.capture(path):
+            current = fingerprint(path)
+            path.unlink(missing_ok=True)  # only photos that get counted are kept
+            if last_analyzed is None:
+                reason = "first photo since start-up"
+            elif (diff := changed_fraction(current, last_analyzed)) > cfg.change_threshold:
+                reason = f"shelf changed ({diff:.1%} of the image)"
+            elif time.time() - last_analysis_time > cfg.recheck_minutes * 60:
+                reason = f"{cfg.recheck_minutes}-minute recount"
+        else:
+            time.sleep(5)  # live view has the camera
             continue
-        current = fingerprint(path)
 
-        changed = last_analyzed is None or changed_fraction(current, last_analyzed) > cfg.change_threshold
-        recheck_due = time.time() - last_analysis_time > cfg.recheck_minutes * 60
-        # Only analyse once the scene has settled, so a hand reaching in isn't counted.
-        stable = previous is not None and changed_fraction(current, previous) <= cfg.change_threshold
+        if reason:
+            # Count a second photo taken a few seconds later, and only if it matches,
+            # so a hand reaching in (or a passing shadow) isn't counted.
+            time.sleep(SETTLE_SECONDS)
+            path = new_image_path(cfg.data_dir)
+            if camera.capture(path):
+                settled = fingerprint(path)
+                moving = changed_fraction(settled, current)
+                if moving > cfg.change_threshold:
+                    log.info("Counting: %s, but the shelf is still moving (%.1f%% changed in %d s), "
+                             "will try again next photo", reason, moving * 100, SETTLE_SECONDS)
+                    path.unlink(missing_ok=True)
+                else:
+                    log.info("Counting: %s", reason)
+                    try:
+                        analyze(path, cfg, store)
+                        last_analyzed = settled
+                        last_analysis_time = time.time()
+                    except Exception:
+                        log.exception("Analysis failed, will retry on the next photo")
+                        path.unlink(missing_ok=True)
 
-        analyzed = False
-        if (changed or recheck_due) and stable:
-            try:
-                analyze(path, cfg, store)
-                last_analyzed = current
-                last_analysis_time = time.time()
-                analyzed = True
-            except Exception:
-                log.exception("Analysis failed, will retry on the next frame")
-        if not analyzed:
-            path.unlink(missing_ok=True)  # only keep photos that were analysed
-
-        previous = current
         flush_outbox(store, cfg.server_url, cfg.node_id, cfg.device_token)
         delete_old_images(cfg.data_dir, keep_images_days(cfg, store))
         time.sleep(cfg.capture_interval)
