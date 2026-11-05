@@ -18,8 +18,25 @@ class Store:
                 payload TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             """
         )
+
+    def get_setting(self, key):
+        """The last value the dashboard sent for `key`, or None if it never sent one."""
+        row = self.db.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else None
+
+    def set_setting(self, key, value):
+        with self.db:
+            self.db.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, str(value)),
+            )
 
     def current_counts(self):
         return dict(self.db.execute("SELECT name, count FROM counts ORDER BY name"))

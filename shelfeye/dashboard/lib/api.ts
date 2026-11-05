@@ -95,6 +95,15 @@ export const updateShelf = (id: number, changes: { name?: string; node_id?: stri
   sendJson<Shelf>("PATCH", `/api/shelves/${id}`, changes);
 export const deleteShelf = (id: number) => sendJson<void>("DELETE", `/api/shelves/${id}`);
 
+/** Settings the cameras pick up on their next heartbeat (within 5 minutes). */
+export type Settings = {
+  keep_images_days: number;
+};
+
+export const MAX_KEEP_IMAGES_DAYS = 3650; // matches server/settings.py
+export const fetchSettings = () => getJson<Settings>("/api/settings");
+export const updateSettings = (changes: Partial<Settings>) => sendJson<Settings>("PATCH", "/api/settings", changes);
+
 /** The shelf name for a camera, or the camera ID when no shelf is assigned to it. */
 export function shelfName(nodeId: string, shelves: Shelf[]) {
   return shelves.find((s) => s.node_id === nodeId)?.name ?? nodeId;

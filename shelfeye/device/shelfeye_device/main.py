@@ -39,6 +39,22 @@ def delete_old_images(data_dir, keep_days):
             shutil.rmtree(folder, ignore_errors=True)
 
 
+def keep_images_days(cfg, store):
+    """Photo retention: the dashboard's value if it ever sent one, else KEEP_IMAGES_DAYS."""
+    saved = store.get_setting("keep_images_days")
+    return int(saved) if saved else cfg.keep_images_days
+
+
+def apply_server_settings(settings, store):
+    """Save settings from the dashboard on the SD card, so they survive restarts and outages."""
+    days = (settings or {}).get("keep_images_days")
+    if not isinstance(days, int) or days < 1:
+        return
+    if store.get_setting("keep_images_days") != str(days):
+        log.info("Dashboard set photo retention to %d days", days)
+        store.set_setting("keep_images_days", days)
+
+
 def analyze(path, cfg, store):
     """Count the products in one photo, save the result and queue it for the server."""
     items = analyze_image(jpeg_for_api(path), cfg.openai_api_key, cfg.openai_model, cfg.catalog)
@@ -80,7 +96,8 @@ def run(cfg, store):
         if time.time() - last_heartbeat > HEARTBEAT_SECONDS:
             ip = local_ip(cfg.server_url)
             live_view_url = f"http://{ip}:{cfg.live_view_port}/stream.mjpg" if cfg.live_view_port and ip else None
-            send_heartbeat(cfg.server_url, cfg.node_id, cfg.device_token, live_view_url)
+            settings = send_heartbeat(cfg.server_url, cfg.node_id, cfg.device_token, live_view_url)
+            apply_server_settings(settings, store)
             last_heartbeat = time.time()
 
         path = new_image_path(cfg.data_dir)
@@ -111,7 +128,7 @@ def run(cfg, store):
 
         previous = current
         flush_outbox(store, cfg.server_url, cfg.node_id, cfg.device_token)
-        delete_old_images(cfg.data_dir, cfg.keep_images_days)
+        delete_old_images(cfg.data_dir, keep_images_days(cfg, store))
         time.sleep(cfg.capture_interval)
 
 

@@ -7,18 +7,24 @@ log = logging.getLogger(__name__)
 
 
 def send_heartbeat(server_url, node_id, token, live_view_url):
-    """Tell the server this camera is alive and where its live view is."""
+    """Tell the server this camera is alive and where its live view is.
+
+    Returns the settings from the dashboard, or None if the server couldn't be reached.
+    """
     if not server_url:
-        return
+        return None
     try:
-        requests.post(
+        response = requests.post(
             f"{server_url}/api/nodes/{node_id}/heartbeat",
             json={"live_view_url": live_view_url},
             headers={"Authorization": f"Bearer {token}"},
             timeout=10,
         )
-    except requests.RequestException as exc:
+        response.raise_for_status()
+        return response.json().get("settings")
+    except (requests.RequestException, ValueError) as exc:
         log.warning("Heartbeat failed: %s", exc)
+        return None
 
 
 def flush_outbox(store, server_url, node_id, token):

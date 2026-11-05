@@ -66,10 +66,10 @@ def load_config(env_path=DEFAULT_ENV_PATH):
         device_token=get("SHELFEYE_DEVICE_TOKEN", ""),
         data_dir=data_dir,
         catalog=catalog,
-        capture_interval=int(get("CAPTURE_INTERVAL_SECONDS", "60")),
+        capture_interval=int(get("CAPTURE_INTERVAL_SECONDS", "180")),
         change_threshold=float(get("CHANGE_THRESHOLD", "0.01")),
         recheck_minutes=int(get("RECHECK_MINUTES", "30")),
-        keep_images_days=int(get("KEEP_IMAGES_DAYS", "7")),
+        keep_images_days=int(get("KEEP_IMAGES_DAYS", "365")),
         live_view_port=int(get("LIVE_VIEW_PORT", "8080")),
         live_view_max_minutes=int(get("LIVE_VIEW_MAX_MINUTES", "10")),
     )

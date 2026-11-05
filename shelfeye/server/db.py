@@ -63,6 +63,10 @@ def init_db():
                 node_id TEXT UNIQUE,
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             """
         )
         # Databases created before live view existed lack this column.

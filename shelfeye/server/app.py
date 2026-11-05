@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from auth import current_user, router as auth_router
 from db import connect, init_db
+from settings import read_settings, router as settings_router
 from shelves import router as shelves_router
 
 log = logging.getLogger("uvicorn.error")
@@ -52,6 +53,7 @@ init_db()
 app = FastAPI(title="ShelfEye")
 app.include_router(auth_router)
 app.include_router(shelves_router)
+app.include_router(settings_router)
 
 
 def check_device_token(authorization):
@@ -72,7 +74,8 @@ def post_heartbeat(node_id: str, heartbeat: Heartbeat, authorization: str = Head
             "ON CONFLICT(node_id) DO UPDATE SET last_seen = excluded.last_seen, live_view_url = excluded.live_view_url",
             (node_id, now_iso(), heartbeat.live_view_url),
         )
-    return {"status": "ok"}
+        # The camera applies these, so dashboard changes reach it within one heartbeat.
+        return {"status": "ok", "settings": read_settings(conn)}
 
 
 @app.post("/api/nodes/{node_id}/readings")

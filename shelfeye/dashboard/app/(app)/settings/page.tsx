@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Shelf, createShelf, deleteShelf, knownCameras, updateShelf } from "@/lib/api";
+import { useEffect, useState } from "react";
+import {
+  MAX_KEEP_IMAGES_DAYS, Shelf, UnauthorizedError, createShelf, deleteShelf, fetchSettings, knownCameras,
+  updateSettings, updateShelf,
+} from "@/lib/api";
 import { useShelfEye } from "@/components/DataProvider";
 import { FormError } from "@/components/AuthFields";
 import { BoxIcon, LogOutIcon, PlusIcon, TrashIcon } from "@/components/Icons";
@@ -178,6 +181,88 @@ function ShelvesCard() {
   );
 }
 
+function PhotoStorageCard() {
+  const [saved, setSaved] = useState<number | null>(null);
+  const [days, setDays] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetchSettings()
+      .then((s) => {
+        setSaved(s.keep_images_days);
+        setDays(String(s.keep_images_days));
+      })
+      // An expired session is handled by DataProvider's own polling.
+      .catch(() => setError("Couldn't load the photo storage setting. Please refresh the page."));
+  }, []);
+
+  const value = Number(days);
+  const valid = Number.isInteger(value) && value >= 1 && value <= MAX_KEEP_IMAGES_DAYS;
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid) return setError(`Enter a number of days from 1 to ${MAX_KEEP_IMAGES_DAYS}.`);
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const s = await updateSettings({ keep_images_days: value });
+      setSaved(s.keep_images_days);
+      setDays(String(s.keep_images_days));
+      setNotice("Saved. Cameras apply it within 5 minutes.");
+    } catch (err) {
+      setError(
+        err instanceof UnauthorizedError
+          ? "Your session has expired. Please log in again."
+          : err instanceof Error ? err.message : "Something went wrong. Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <h2>Photo storage</h2>
+          <p>How long each camera keeps its shelf photos on its SD card. Older photos are deleted.</p>
+        </div>
+      </div>
+      <div className="card-body">
+        <FormError message={error} />
+        <form className="retention" onSubmit={save}>
+          <label className="retention-field">
+            <span className="small muted">Keep photos for</span>
+            <input
+              className="input"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_KEEP_IMAGES_DAYS}
+              step={1}
+              aria-label="Days to keep photos"
+              value={days}
+              disabled={saved === null || busy}
+              onChange={(e) => {
+                setDays(e.target.value);
+                setNotice("");
+              }}
+            />
+            <span className="small muted">days</span>
+          </label>
+          <button className="btn btn-primary" type="submit" disabled={saved === null || busy || value === saved}>
+            Save
+          </button>
+        </form>
+        {notice && <p className="small muted retention-note">{notice}</p>}
+      </div>
+    </section>
+  );
+}
+
 function AccountCard() {
   const { user, signOut } = useShelfEye();
   return (
@@ -203,6 +288,7 @@ export default function SettingsPage() {
   return (
     <div className="settings">
       <ShelvesCard />
+      <PhotoStorageCard />
       <AccountCard />
     </div>
   );

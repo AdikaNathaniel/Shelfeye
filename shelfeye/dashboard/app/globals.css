@@ -330,6 +330,10 @@ td.num { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; 
 .shelf-confirm { display: flex; align-items: center; gap: 6px; flex: none; }
 .btn-danger { background: var(--out); border-color: var(--out); color: #fff; }
 .btn-danger:hover { background: #a82424; border-color: #a82424; }
+.retention { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.retention-field { display: flex; align-items: center; gap: 10px; }
+.retention-field .input { width: 100px; height: 36px; }
+.retention-note { margin-top: 10px; }
 .account { display: grid; gap: 10px; margin: 0; }
 .account div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; }
 .account dt { color: var(--muted); font-size: 13px; }
