@@ -15,6 +15,7 @@ from pymongo.errors import PyMongoError
 from auth import check_device_token, current_user, router as auth_router
 from db import api_doc, database
 from live import router as live_router
+from password_reset import router as password_reset_router
 from settings import read_settings, router as settings_router
 from shelves import router as shelves_router
 
@@ -51,6 +52,7 @@ app.include_router(auth_router)
 app.include_router(shelves_router)
 app.include_router(settings_router)
 app.include_router(live_router)
+app.include_router(password_reset_router)
 
 
 @app.exception_handler(PyMongoError)

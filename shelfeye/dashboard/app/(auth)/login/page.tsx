@@ -49,7 +49,10 @@ export default function LoginPage() {
         />
       </div>
       <div className="field">
-        <label htmlFor="password">Password</label>
+        <div className="field-row">
+          <label htmlFor="password">Password</label>
+          <Link href="/forgot-password" className="field-link">Forgot password?</Link>
+        </div>
         <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="current-password" placeholder="Your password" />
       </div>
 

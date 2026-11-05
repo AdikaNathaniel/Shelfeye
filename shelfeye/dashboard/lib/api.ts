@@ -120,6 +120,11 @@ export const login = (email: string, password: string) => postJson<User>("/api/a
 export const register = (name: string, email: string, password: string) =>
   postJson<User>("/api/auth/register", { name, email, password });
 export const logout = () => postJson("/api/auth/logout").catch(() => undefined);
+/** Emails a reset link if the account exists. Succeeds either way, so it reveals nothing. */
+export const forgotPassword = (email: string) => postJson("/api/auth/forgot-password", { email });
+/** Sets a new password with the token from the emailed link, and logs this browser in. */
+export const resetPassword = (token: string, password: string) =>
+  postJson<User>("/api/auth/reset-password", { token, password });
 
 export function minutesAgo(iso: string) {
   return (Date.now() - new Date(iso).getTime()) / 60000;

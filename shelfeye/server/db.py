@@ -7,6 +7,7 @@ MONGODB_DB picks the database (default "shelfeye").
 Collections:
   users      {_id, name, email, password_hash, created_at}       dashboard accounts
   sessions   {_id: token hash, user_id, expires_at}              logins (removed by MongoDB once expired)
+  password_resets {_id: token hash, user_id, created_at, expires_at}  forgot-password links (same)
   nodes      {_id: node_id, last_seen, live_view}                cameras
   readings   {_id: reading_id, node_id, captured_at, image, received_at}
   inventory  {node_id, name, count, label_text, updated_at}      latest count per product
@@ -19,6 +20,8 @@ import threading
 
 from fastapi import HTTPException
 from pymongo import ASCENDING, DESCENDING, MongoClient
+
+import env  # noqa: F401  (loads server/.env before any setting is read)
 
 MONGODB_URI = os.environ.get("MONGODB_URI", "")
 MONGODB_DB = os.environ.get("MONGODB_DB", "shelfeye")
@@ -44,6 +47,8 @@ def database():
 def _create_indexes(db):
     db.users.create_index("email", unique=True)
     db.sessions.create_index("expires_at", expireAfterSeconds=0)
+    db.password_resets.create_index("expires_at", expireAfterSeconds=0)
+    db.password_resets.create_index("user_id")
     db.inventory.create_index([("node_id", ASCENDING), ("name", ASCENDING)], unique=True)
     db.events.create_index([("captured_at", DESCENDING)])
     # Shelf names are unique ignoring case (name_key is the lowercased name);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
 
 // A quick check before the page loads: no session cookie means go to /login.
 // The server still validates the session on every API call.
