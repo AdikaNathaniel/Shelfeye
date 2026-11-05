@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LIVE_VIEW_MAX_MINUTES } from "@/lib/api";
+import { useShelfName } from "./DataProvider";
 
 type State = "connecting" | "watching" | "retrying" | "timed-out";
 
@@ -13,6 +14,7 @@ export default function LiveView({ nodeId, onClose }: { nodeId: string; onClose:
   const [attempt, setAttempt] = useState(0); // each attempt opens a fresh stream
   const [failures, setFailures] = useState(0); // in a row, reset by the first frame
   const imgRef = useRef<HTMLImageElement>(null);
+  const shelfName = useShelfName();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -65,10 +67,10 @@ export default function LiveView({ nodeId, onClose }: { nodeId: string; onClose:
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="live-card" role="dialog" aria-label={`Live view of ${nodeId}`} onClick={(e) => e.stopPropagation()}>
+      <div className="live-card" role="dialog" aria-label={`Live view of ${shelfName(nodeId)}`} onClick={(e) => e.stopPropagation()}>
         <div className="card-head">
           <h2>
-            Live view · {nodeId}
+            Live view · {shelfName(nodeId)}
             {state === "watching" && <span className="live-tag">LIVE</span>}
           </h2>
           <button className="btn" onClick={onClose}>Close</button>

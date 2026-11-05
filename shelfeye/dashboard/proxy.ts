@@ -17,5 +17,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|icon.svg|favicon.ico).*)"],
+  // Skip the API, Next.js assets and image files (the login page background must load before login).
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|jpg|jpeg|png|webp)$).*)"],
 };

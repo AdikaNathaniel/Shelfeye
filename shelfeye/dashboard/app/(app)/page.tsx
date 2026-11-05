@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { LOW_STOCK, isReporting, isToday, stockLevel, timeAgo } from "@/lib/api";
-import { useShelfEye } from "@/components/DataProvider";
+import { useShelfEye, useShelfName } from "@/components/DataProvider";
 import { AlertIcon, ArrowDownIcon, BoxIcon, CameraIcon, CheckIcon, ChevronRightIcon, ActivityIcon, VideoIcon } from "@/components/Icons";
 import LiveView from "@/components/LiveView";
 import { EmptyState, EventList, StatCard, StockPill } from "@/components/ui";
@@ -16,6 +16,7 @@ function greeting() {
 export default function OverviewPage() {
   const { user, data } = useShelfEye();
   const [liveNode, setLiveNode] = useState<string | null>(null);
+  const shelfName = useShelfName();
   const firstName = user.name.split(/\s+/)[0];
 
   const inventory = data?.inventory ?? [];
@@ -69,7 +70,7 @@ export default function OverviewPage() {
                 <li key={`${r.node_id}/${r.name}`} className="row">
                   <div className="row-main">
                     <div className="row-title">{r.name}</div>
-                    <div className="row-sub">{r.node_id} · updated {timeAgo(r.updated_at)}</div>
+                    <div className="row-sub">{shelfName(r.node_id)} · updated {timeAgo(r.updated_at)}</div>
                   </div>
                   <StockPill level={stockLevel(r.count)} />
                   <div className="row-end big-count">{r.count}</div>
@@ -117,7 +118,7 @@ export default function OverviewPage() {
               <div key={n.node_id} className="camera-mini">
                 <span className={`dot ${isReporting(n) ? "" : "stale"}`} />
                 <div className="row-main">
-                  <div className="row-title">{n.node_id}</div>
+                  <div className="row-title">{shelfName(n.node_id)}</div>
                   <div className="row-sub">Last seen {timeAgo(n.last_seen)}</div>
                 </div>
                 {n.live_view_url && (

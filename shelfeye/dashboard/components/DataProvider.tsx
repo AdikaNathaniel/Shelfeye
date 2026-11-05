@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DashboardData, UnauthorizedError, User, fetchDashboard, fetchMe, logout } from "@/lib/api";
+import { DashboardData, UnauthorizedError, User, fetchDashboard, fetchMe, logout, shelfName } from "@/lib/api";
 
 const REFRESH_MS = 10000;
 
@@ -14,6 +14,8 @@ type Shared = {
   connection: Connection;
   updatedAt: Date | null;
   signOut: () => Promise<void>;
+  /** Fetch fresh data now, e.g. right after changing a setting. */
+  refresh: () => Promise<void>;
 };
 
 const DataContext = createContext<Shared | null>(null);
@@ -24,12 +26,19 @@ export function useShelfEye() {
   return value;
 }
 
+/** Turns a camera ID into the name of its shelf from Settings. */
+export function useShelfName() {
+  const shelves = useShelfEye().data?.shelves ?? [];
+  return (nodeId: string) => shelfName(nodeId, shelves);
+}
+
 export default function DataProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [connection, setConnection] = useState<Connection>("connecting");
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +62,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       }
     }
 
+    refreshRef.current = refresh;
     fetchMe()
       .then((me) => {
         if (cancelled) return;
@@ -86,6 +96,6 @@ export default function DataProvider({ children }: { children: React.ReactNode }
   }
 
   return (
-    <DataContext.Provider value={{ user, data, connection, updatedAt, signOut }}>{children}</DataContext.Provider>
+    <DataContext.Provider value={{ user, data, connection, updatedAt, signOut, refresh: () => refreshRef.current() }}>{children}</DataContext.Provider>
   );
 }

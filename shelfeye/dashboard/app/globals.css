@@ -107,7 +107,12 @@ h1, h2, h3, p { margin: 0; }
 .sidebar {
   position: fixed; inset: 0 auto 0 0; width: var(--sidebar); background: var(--surface);
   border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px 14px; z-index: 5;
+  transition: width 0.2s ease; overflow: hidden;
 }
+.sidebar-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; padding-bottom: 22px; }
+.sidebar-head .brand { padding-bottom: 0; min-width: 0; }
+.sidebar-head .brand > div { white-space: nowrap; }
+.collapse-btn { margin-top: 2px; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 22px; }
 .brand-name { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
 .brand-sub { font-size: 12px; color: var(--muted); }
@@ -126,7 +131,17 @@ h1, h2, h3, p { margin: 0; }
 .icon-btn { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--radius-sm); border: none; background: transparent; color: var(--muted); cursor: pointer; flex: none; }
 .icon-btn:hover { background: var(--accent-softer); color: var(--text); }
 
-.main { margin-left: var(--sidebar); min-width: 0; }
+.main { margin-left: var(--sidebar); min-width: 0; transition: margin-left 0.2s ease; }
+
+/* Collapsed sidebar: icons only */
+.shell.collapsed { --sidebar: 76px; }
+.collapsed .sidebar { padding: 20px 12px; }
+.collapsed .sidebar-head { flex-direction: column; align-items: center; gap: 12px; }
+.collapsed .sidebar-head .brand { padding: 0; }
+.collapsed .brand > div, .collapsed .nav-label, .collapsed .nav .nav-text, .collapsed .user-name { display: none; }
+.collapsed .nav a { justify-content: center; padding: 0; position: relative; }
+.collapsed .nav a .count { position: absolute; top: 2px; right: 6px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
+.collapsed .user-card { flex-direction: column; padding: 8px 0; border: none; }
 .topbar {
   position: sticky; top: 0; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 18px 32px; background: rgba(250, 247, 244, 0.85); backdrop-filter: blur(8px); border-bottom: 1px solid transparent;
@@ -150,7 +165,7 @@ h1, h2, h3, p { margin: 0; }
   .topbar .status { display: none; }
   .content { padding: 4px 16px 32px; }
   .tabbar {
-    display: grid; grid-template-columns: repeat(4, 1fr); position: fixed; inset: auto 0 0 0; z-index: 6;
+    display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; inset: auto 0 0 0; z-index: 6;
     background: var(--surface); border-top: 1px solid var(--border); padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
   }
   .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; border-radius: var(--radius-sm); color: var(--muted); font-size: 11px; font-weight: 600; position: relative; }
@@ -260,22 +275,23 @@ td.num { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; 
 /* ---------- Auth pages ---------- */
 .auth { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: var(--surface); }
 .auth-panel {
-  background: linear-gradient(160deg, #fff4ea 0%, #ffe7d3 100%); padding: 40px 48px; display: flex; flex-direction: column;
-  position: relative; overflow: hidden;
+  /* Dark wash over the shop photo keeps the white text readable */
+  background:
+    linear-gradient(90deg, rgba(28, 16, 8, 0.45) 0%, rgba(28, 16, 8, 0) 75%),
+    linear-gradient(180deg, rgba(28, 16, 8, 0.55) 0%, rgba(28, 16, 8, 0.5) 45%, rgba(28, 16, 8, 0.85) 100%),
+    url("/auth-bg.jpg") center / cover no-repeat, #3b2414;
+  padding: 40px 48px; display: flex; flex-direction: column; position: relative; overflow: hidden; color: #fff;
 }
+.auth-panel .brand-name { color: #fff; }
+.auth-panel .brand-sub { color: rgba(255, 255, 255, 0.75); }
 .auth-panel .brand { padding: 0; }
 .auth-pitch { margin: auto 0; max-width: 440px; position: relative; z-index: 1; }
-.auth-pitch h2 { font-size: 32px; line-height: 1.15; letter-spacing: -0.02em; font-weight: 700; color: #3b2414; }
-.auth-pitch > p { margin-top: 12px; color: #7a5a44; font-size: 15px; }
+.auth-pitch h2 { font-size: 32px; line-height: 1.15; letter-spacing: -0.02em; font-weight: 700; color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35); }
+.auth-pitch > p { margin-top: 12px; color: rgba(255, 255, 255, 0.88); font-size: 15px; }
 .features { list-style: none; padding: 0; margin: 28px 0 0; display: grid; gap: 12px; }
-.features li { display: flex; align-items: center; gap: 12px; color: #4a3020; font-weight: 500; }
+.features li { display: flex; align-items: center; gap: 12px; color: #fff; font-weight: 500; }
 .features span { width: 30px; height: 30px; border-radius: 8px; background: rgba(255, 255, 255, 0.75); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
-.preview-card {
-  margin-top: 32px; background: var(--surface); border-radius: 14px; padding: 14px 16px; box-shadow: 0 10px 30px rgba(154, 61, 11, 0.12);
-  max-width: 340px; display: grid; gap: 10px;
-}
-.preview-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
-.auth-foot { color: #8a6a54; font-size: 12.5px; position: relative; z-index: 1; }
+.auth-foot { color: rgba(255, 255, 255, 0.7); font-size: 12.5px; position: relative; z-index: 1; }
 .auth-form-wrap { display: grid; place-items: center; padding: 40px 24px; }
 .auth-form { width: 100%; max-width: 380px; }
 .auth-form .mobile-brand { display: none; margin-bottom: 28px; }
@@ -302,3 +318,27 @@ td.num { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; 
 .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.45); border-top-color: #fff; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading-screen { min-height: 100vh; display: grid; place-items: center; color: var(--muted); }
+
+/* ---------- Settings ---------- */
+.settings { display: grid; gap: 18px; max-width: 860px; }
+.shelf-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px) auto; gap: 10px; }
+.shelf-add .input { height: 36px; }
+.shelf-hint { margin: 8px 0 14px; }
+.shelf-hint code { font-size: 11.5px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+.shelf-row { gap: 10px; }
+.shelf-number { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.shelf-row .shelf-name { flex: 1; min-width: 0; height: 36px; }
+.shelf-row .select { width: 200px; flex: none; }
+.shelf-confirm { display: flex; align-items: center; gap: 6px; flex: none; }
+.btn-danger { background: var(--out); border-color: var(--out); color: #fff; }
+.btn-danger:hover { background: #a82424; border-color: #a82424; }
+.account { display: grid; gap: 10px; margin: 0; }
+.account div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; }
+.account dt { color: var(--muted); font-size: 13px; }
+.account dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .shelf-add { grid-template-columns: minmax(0, 1fr); }
+  .shelf-row { flex-wrap: wrap; }
+  .shelf-row .shelf-name { flex-basis: calc(100% - 36px); }
+  .shelf-row .select { flex: 1; width: auto; }
+}

@@ -10,14 +10,14 @@ type Filter = "all" | "taken" | "added";
 export default function ActivityPage() {
   const { data } = useShelfEye();
   const [filter, setFilter] = useState<Filter>("all");
-  const [shelf, setShelf] = useState("");
+  const [shelfId, setShelfId] = useState(""); // "" means all shelves
 
   const events = data?.events ?? [];
-  const shelves = [...new Set(events.map((e) => e.node_id))].sort();
-  const activeShelf = shelves.includes(shelf) ? shelf : "";
+  const shelves = data?.shelves ?? [];
+  const activeShelf = shelves.find((s) => String(s.id) === shelfId) ?? null;
   const visible = events
     .filter((e) => filter === "all" || (filter === "taken" ? e.delta < 0 : e.delta > 0))
-    .filter((e) => !activeShelf || e.node_id === activeShelf);
+    .filter((e) => !activeShelf || e.node_id === activeShelf.node_id);
 
   return (
     <section className="card">
@@ -27,9 +27,9 @@ export default function ActivityPage() {
           <p>Newest first</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <select className="select" aria-label="Filter by shelf" value={activeShelf} onChange={(e) => setShelf(e.target.value)}>
+          <select className="select" aria-label="Filter by shelf" value={activeShelf ? shelfId : ""} onChange={(e) => setShelfId(e.target.value)}>
             <option value="">All shelves</option>
-            {shelves.map((s) => <option key={s} value={s}>{s}</option>)}
+            {shelves.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <div className="segmented" role="group" aria-label="Filter by change">
             {(["all", "taken", "added"] as Filter[]).map((f) => (

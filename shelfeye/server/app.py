@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from auth import current_user, router as auth_router
 from db import connect, init_db
+from shelves import router as shelves_router
 
 log = logging.getLogger("uvicorn.error")
 
@@ -50,6 +51,7 @@ class Heartbeat(BaseModel):
 init_db()
 app = FastAPI(title="ShelfEye")
 app.include_router(auth_router)
+app.include_router(shelves_router)
 
 
 def check_device_token(authorization):

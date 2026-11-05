@@ -57,6 +57,12 @@ def init_db():
                 delta INTEGER NOT NULL,
                 captured_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS shelves (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                node_id TEXT UNIQUE,
+                created_at TEXT NOT NULL
+            );
             """
         )
         # Databases created before live view existed lack this column.

@@ -24,10 +24,19 @@ export type ShelfNode = {
   live_view_url: string | null;
 };
 
+/** A shelf set up on the Settings page, optionally watched by one camera. */
+export type Shelf = {
+  id: number;
+  name: string;
+  node_id: string | null;
+  created_at: string;
+};
+
 export type DashboardData = {
   inventory: InventoryRow[];
   events: StockEvent[];
   nodes: ShelfNode[];
+  shelves: Shelf[];
 };
 
 export type User = {
@@ -58,23 +67,42 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json();
 }
 
-async function postJson<T>(path: string, body?: unknown): Promise<T> {
+async function sendJson<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  if (response.status === 401 && !path.startsWith("/api/auth/")) throw new UnauthorizedError();
   if (!response.ok) throw new Error(await errorMessage(response));
-  return response.json();
+  return response.status === 204 ? (undefined as T) : response.json();
 }
 
+const postJson = <T>(path: string, body?: unknown) => sendJson<T>("POST", path, body);
+
 export async function fetchDashboard(): Promise<DashboardData> {
-  const [inventory, events, nodes] = await Promise.all([
+  const [inventory, events, nodes, shelves] = await Promise.all([
     getJson<InventoryRow[]>("/api/inventory"),
     getJson<StockEvent[]>("/api/events?limit=500"),
     getJson<ShelfNode[]>("/api/nodes"),
+    getJson<Shelf[]>("/api/shelves"),
   ]);
-  return { inventory, events, nodes };
+  return { inventory, events, nodes, shelves };
+}
+
+export const createShelf = (name: string, node_id: string | null) => postJson<Shelf>("/api/shelves", { name, node_id });
+export const updateShelf = (id: number, changes: { name?: string; node_id?: string | null }) =>
+  sendJson<Shelf>("PATCH", `/api/shelves/${id}`, changes);
+export const deleteShelf = (id: number) => sendJson<void>("DELETE", `/api/shelves/${id}`);
+
+/** The shelf name for a camera, or the camera ID when no shelf is assigned to it. */
+export function shelfName(nodeId: string, shelves: Shelf[]) {
+  return shelves.find((s) => s.node_id === nodeId)?.name ?? nodeId;
+}
+
+/** Every camera ID the dashboard knows about: checked-in cameras plus any that sent stock. */
+export function knownCameras(data: DashboardData) {
+  return [...new Set([...data.nodes.map((n) => n.node_id), ...data.inventory.map((r) => r.node_id)])].sort();
 }
 
 export const fetchMe = () => getJson<User>("/api/auth/me");

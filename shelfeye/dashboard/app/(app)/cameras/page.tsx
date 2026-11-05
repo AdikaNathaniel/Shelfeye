@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { LOW_STOCK, isReporting, timeAgo } from "@/lib/api";
-import { useShelfEye } from "@/components/DataProvider";
+import { useShelfEye, useShelfName } from "@/components/DataProvider";
 import { CameraIcon, VideoIcon } from "@/components/Icons";
 import LiveView from "@/components/LiveView";
 import { EmptyState } from "@/components/ui";
@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui";
 export default function CamerasPage() {
   const { data } = useShelfEye();
   const [liveNode, setLiveNode] = useState<string | null>(null);
+  const shelfName = useShelfName();
 
   if (!data) return <div className="card empty">Loading cameras…</div>;
   if (!data.nodes.length) {
@@ -34,7 +35,8 @@ export default function CamerasPage() {
               <div className="camera-top">
                 <div className="camera-icon"><CameraIcon size={20} /></div>
                 <div className="row-main">
-                  <div className="camera-name">{n.node_id}</div>
+                  <div className="camera-name">{shelfName(n.node_id)}</div>
+                  {shelfName(n.node_id) !== n.node_id && <div className="row-sub">Camera {n.node_id}</div>}
                   <div className="camera-status">
                     <span className={`dot ${ok ? "" : "stale"}`} />
                     {ok ? "Reporting" : "Not heard from recently"} · {timeAgo(n.last_seen)}

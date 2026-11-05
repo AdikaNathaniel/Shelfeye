@@ -1,5 +1,6 @@
 // Small presentational pieces shared by the pages.
 import { STOCK_LABEL, StockEvent, StockLevel, clockTime, dayLabel, timeAgo } from "@/lib/api";
+import { useShelfName } from "./DataProvider";
 import { ArrowDownIcon, ArrowUpIcon } from "./Icons";
 
 export function StatCard({
@@ -39,13 +40,14 @@ export function EmptyState({ icon, title, children }: { icon: React.ReactNode; t
 
 function EventRow({ event, showDayTime }: { event: StockEvent; showDayTime: boolean }) {
   const taken = event.delta < 0;
+  const shelfName = useShelfName();
   return (
     <li className="row">
       <span className={`delta ${taken ? "taken" : "added"}`}>{taken ? <ArrowDownIcon /> : <ArrowUpIcon />}</span>
       <div className="row-main">
         <div className="row-title">{event.name}</div>
         <div className="row-sub">
-          {taken ? "Taken" : "Added"} · {event.previous} → {event.current} · {event.node_id}
+          {taken ? "Taken" : "Added"} · {event.previous} → {event.current} · {shelfName(event.node_id)}
         </div>
       </div>
       <div className="row-end">

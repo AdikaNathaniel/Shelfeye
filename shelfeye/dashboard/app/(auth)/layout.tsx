@@ -20,11 +20,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             <li><span><AlertIcon size={16} /></span>Low-stock alerts before you run out</li>
             <li><span><ActivityIcon size={16} /></span>A record of every item taken</li>
           </ul>
-          <div className="preview-card" aria-hidden="true">
-            <div className="preview-row"><strong>Paracetamol 500mg</strong><span className="pill ok">In stock</span></div>
-            <div className="preview-row"><strong>Ibuprofen 400mg</strong><span className="pill low">Low</span></div>
-            <div className="preview-row"><strong>Amoxicillin 250mg</strong><span className="pill out">Out of stock</span></div>
-          </div>
         </div>
 
         <div className="auth-foot">© {new Date().getFullYear()} ShelfEye</div>

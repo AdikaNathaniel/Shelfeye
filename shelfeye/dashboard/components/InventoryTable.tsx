@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { InventoryRow, StockLevel, stockLevel, timeAgo } from "@/lib/api";
+import Link from "next/link";
+import { useState } from "react";
+import { InventoryRow, Shelf, StockLevel, shelfName, stockLevel, timeAgo } from "@/lib/api";
 import { BoxIcon, SearchIcon } from "./Icons";
 import { EmptyState, StockPill } from "./ui";
 
@@ -19,17 +20,19 @@ function matchesFilter(level: StockLevel, filter: Filter) {
   return level !== "ok"; // "Low" includes out-of-stock items, which are the lowest of all
 }
 
-export default function InventoryTable({ rows, loading }: { rows: InventoryRow[]; loading: boolean }) {
+type Props = { rows: InventoryRow[]; shelves: Shelf[]; loading: boolean };
+
+export default function InventoryTable({ rows, shelves, loading }: Props) {
   const [query, setQuery] = useState("");
-  const [shelf, setShelf] = useState("");
+  const [shelfId, setShelfId] = useState(""); // "" means all shelves
   const [filter, setFilter] = useState<Filter>("all");
 
-  const shelves = useMemo(() => [...new Set(rows.map((r) => r.node_id))].sort(), [rows]);
-  const activeShelf = shelves.includes(shelf) ? shelf : "";
+  // The shelf may have been deleted in Settings since it was picked.
+  const activeShelf = shelves.find((s) => String(s.id) === shelfId) ?? null;
 
   const q = query.trim().toLowerCase();
   const visible = rows
-    .filter((r) => !activeShelf || r.node_id === activeShelf)
+    .filter((r) => !activeShelf || r.node_id === activeShelf.node_id)
     .filter((r) => matchesFilter(stockLevel(r.count), filter))
     .filter((r) => !q || r.name.toLowerCase().includes(q) || r.label_text.toLowerCase().includes(q))
     .sort((a, b) => a.count - b.count || a.name.localeCompare(b.name)); // lowest stock first
@@ -61,10 +64,15 @@ export default function InventoryTable({ rows, loading }: { rows: InventoryRow[]
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <select className="select" aria-label="Filter by shelf" value={activeShelf} onChange={(e) => setShelf(e.target.value)}>
+        <select className="select" aria-label="Filter by shelf" value={activeShelf ? shelfId : ""} onChange={(e) => setShelfId(e.target.value)}>
           <option value="">All shelves</option>
-          {shelves.map((s) => <option key={s} value={s}>{s}</option>)}
+          {shelves.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
+        {!loading && !shelves.length && (
+          <span className="muted small">
+            <Link href="/settings" className="link">Add shelves in Settings</Link> to filter by shelf.
+          </span>
+        )}
       </div>
 
       {loading ? (
@@ -72,6 +80,10 @@ export default function InventoryTable({ rows, loading }: { rows: InventoryRow[]
       ) : !rows.length ? (
         <EmptyState icon={<BoxIcon />} title="No products yet">
           Products appear here once a shelf camera sends its first count.
+        </EmptyState>
+      ) : activeShelf && !activeShelf.node_id ? (
+        <EmptyState icon={<BoxIcon />} title={`No camera on ${activeShelf.name} yet`}>
+          Assign a camera to this shelf in <Link href="/settings" className="link">Settings</Link> to see its products.
         </EmptyState>
       ) : !visible.length ? (
         <EmptyState icon={<SearchIcon />} title="Nothing matches">
@@ -91,7 +103,7 @@ export default function InventoryTable({ rows, loading }: { rows: InventoryRow[]
                       <div className="product-name">{r.name}</div>
                       {r.label_text && r.label_text !== r.name && <div className="product-label">Label: {r.label_text}</div>}
                     </td>
-                    <td><span className="tag">{r.node_id}</span></td>
+                    <td><span className="tag">{shelfName(r.node_id, shelves)}</span></td>
                     <td><StockPill level={stockLevel(r.count)} /></td>
                     <td className="num">{r.count}</td>
                     <td className="muted" title={new Date(r.updated_at).toLocaleString()}>{timeAgo(r.updated_at)}</td>
