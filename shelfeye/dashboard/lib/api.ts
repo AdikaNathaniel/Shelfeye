@@ -40,7 +40,7 @@ export type DashboardData = {
 };
 
 export type User = {
-  id: number;
+  id: string; // MongoDB id
   name: string;
   email: string;
 };

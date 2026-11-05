@@ -1,5 +1,6 @@
 """User accounts for the dashboard: register, log in, log out.
 
+Accounts live in MongoDB (users_db.py); login sessions live in SQLite.
 Passwords are hashed with scrypt. A login creates a random session token that
 is kept in an httpOnly cookie; only its SHA-256 hash is stored.
 """
@@ -13,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel
 
+import users_db
 from db import connect
 
 COOKIE_NAME = "shelfeye_session"
@@ -66,10 +68,6 @@ def _now():
     return datetime.now(timezone.utc)
 
 
-def _public(user):
-    return {"id": user["id"], "name": user["name"], "email": user["email"]}
-
-
 def _start_session(response, user_id):
     token = secrets.token_urlsafe(32)
     expires_at = (_now() + timedelta(days=SESSION_DAYS)).isoformat(timespec="seconds")
@@ -89,13 +87,14 @@ def current_user(shelfeye_session: str | None = Cookie(None)):
         raise HTTPException(status_code=401, detail="Please log in")
     with closing(connect()) as conn:
         row = conn.execute(
-            "SELECT users.id, users.name, users.email, sessions.expires_at FROM sessions "
-            "JOIN users ON users.id = sessions.user_id WHERE sessions.token_hash = ?",
-            (_token_hash(shelfeye_session),),
+            "SELECT user_id, expires_at FROM sessions WHERE token_hash = ?", (_token_hash(shelfeye_session),)
         ).fetchone()
     if not row or row["expires_at"] < _now().isoformat(timespec="seconds"):
         raise HTTPException(status_code=401, detail="Your session has expired, please log in again")
-    return _public(row)
+    user = users_db.find_by_id(row["user_id"])
+    if not user:
+        raise HTTPException(status_code=401, detail="Your session has expired, please log in again")
+    return users_db.public(user)
 
 
 @router.post("/register", status_code=201)
@@ -109,14 +108,10 @@ def register(body: RegisterBody, response: Response):
     if len(body.password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(status_code=400, detail=f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
 
-    with closing(connect()) as conn, conn:
-        if conn.execute("SELECT 1 FROM users WHERE email = ?", (email,)).fetchone():
-            raise HTTPException(status_code=409, detail="An account with this email already exists")
-        cursor = conn.execute(
-            "INSERT INTO users (name, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-            (name, email, hash_password(body.password), _now().isoformat(timespec="seconds")),
-        )
-        user_id = cursor.lastrowid
+    try:
+        user_id = users_db.create_user(name, email, hash_password(body.password), _now().isoformat(timespec="seconds"))
+    except users_db.EmailTaken:
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
     _start_session(response, user_id)
     return {"id": user_id, "name": name, "email": email}
 
@@ -124,13 +119,13 @@ def register(body: RegisterBody, response: Response):
 @router.post("/login")
 def login(body: LoginBody, response: Response):
     email = body.email.strip().lower()
-    with closing(connect()) as conn:
-        user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    user = users_db.find_by_email(email)
     # Same message either way, so the form doesn't reveal which emails have accounts.
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
-    _start_session(response, user["id"])
-    return _public(user)
+    user_id = str(user["_id"])
+    _start_session(response, user_id)
+    return users_db.public(user)
 
 
 @router.post("/logout")
