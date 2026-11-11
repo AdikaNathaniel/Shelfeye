@@ -3,15 +3,17 @@
 The camera can't be reached from the internet, so it comes to us instead:
   1. It keeps a request open to /live/wait, which answers as soon as someone
      opens the live view (or after WAIT_SECONDS, and it simply asks again).
-  2. While someone is watching, it uploads JPEG frames to /live/frame. Each
-     reply says whether anyone is still watching, so it knows when to stop.
+  2. While someone is watching, it sends JPEG frames, either over one WebSocket
+     (/live/ws, the ESP32: no request-and-reply round trip per frame; we send
+     {"watching": false} when the last viewer leaves) or one POST per frame to
+     /live/frame (the Pi; each reply says whether anyone is still watching).
   3. Viewers get those frames as an MJPEG stream from /stream.
 
 Frames only live in this process's memory, so run the server with one worker.
 """
 import asyncio
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
 from auth import check_device_token, current_user
@@ -64,12 +66,45 @@ async def post_frame(node_id: str, request: Request, authorization: str = Header
     if not frame or len(frame) > MAX_FRAME_BYTES:
         raise HTTPException(status_code=400, detail="Send one JPEG frame of at most 2 MB")
     channel = _channel(node_id)
+    await _publish(channel, frame)
+    return {"watching": channel.viewers > 0}
+
+
+async def _publish(channel, frame):
     if channel.viewers:
         async with channel.new_frame:
             channel.frame = frame
             channel.frame_number += 1
             channel.new_frame.notify_all()
-    return {"watching": channel.viewers > 0}
+
+
+@router.websocket("/live/ws")
+async def frames_socket(websocket: WebSocket, node_id: str):
+    """Camera side: JPEG frames as binary messages over one connection."""
+    try:
+        check_device_token(websocket.headers.get("authorization", ""))
+    except HTTPException:
+        await websocket.close(code=1008)  # policy violation: bad device token
+        return
+    await websocket.accept()
+    channel = _channel(node_id)
+    try:
+        while True:
+            try:
+                message = await asyncio.wait_for(websocket.receive(), NEXT_FRAME_SECONDS)
+            except asyncio.TimeoutError:
+                break  # the camera stopped sending
+            if message["type"] == "websocket.disconnect":
+                return
+            frame = message.get("bytes")
+            if frame and len(frame) <= MAX_FRAME_BYTES:
+                await _publish(channel, frame)
+            if not channel.viewers:
+                await websocket.send_json({"watching": False})
+                break
+        await websocket.close()
+    except WebSocketDisconnect:
+        pass
 
 
 @router.get("/stream", dependencies=[Depends(current_user)])

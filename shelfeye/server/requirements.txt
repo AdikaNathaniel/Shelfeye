@@ -1,4 +1,5 @@
 fastapi
 uvicorn
+websockets  # lets uvicorn accept the cameras' live-view WebSockets
 requests
 pymongo

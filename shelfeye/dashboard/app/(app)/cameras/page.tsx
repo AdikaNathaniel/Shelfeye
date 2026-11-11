@@ -56,6 +56,18 @@ export default function CamerasPage() {
                   Live view unavailable
                 </button>
               )}
+              {n.local_view_url && (
+                <div className="camera-local">
+                  {/* A new tab: this page is https and the camera is plain http on the
+                      local network, so browsers won't show its video inside this page. */}
+                  <a className="btn" href={n.local_view_url} target="_blank" rel="noopener noreferrer">
+                    <VideoIcon size={16} /> Fast local view (same Wi-Fi) ↗
+                  </a>
+                  <div className="row-sub">
+                    Local address {n.local_ip}. Much less delay, but only works on the camera&apos;s Wi-Fi network.
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

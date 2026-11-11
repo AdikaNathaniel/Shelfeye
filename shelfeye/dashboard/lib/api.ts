@@ -23,6 +23,10 @@ export type ShelfNode = {
   node_id: string;
   last_seen: string;
   live_view: boolean; // the camera relays a live view through the server
+  // The camera's own video page (ESP32), reachable only from its Wi-Fi network.
+  // Missing or "" for cameras without one.
+  local_ip?: string;
+  local_view_url?: string;
 };
 
 /** A shelf set up on the Settings page, optionally watched by one camera. */

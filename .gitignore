@@ -17,6 +17,9 @@ shelfeye.env
 # Device data folder (photos and local database) when testing on a laptop
 shelfeye-data/
 
+# ESP32 firmware build output (PlatformIO)
+.pio/
+
 # Python
 __pycache__/
 *.pyc

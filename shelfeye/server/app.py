@@ -45,6 +45,9 @@ class Reading(BaseModel):
 
 class Heartbeat(BaseModel):
     live_view: bool = False  # the camera relays its live view through this server
+    # Its fast local view (same Wi-Fi only), if it has one: address on its own network and link key.
+    local_ip: str = ""
+    local_view_key: str = ""
 
 
 app = FastAPI(title="ShelfEye")
@@ -71,7 +74,10 @@ def post_heartbeat(node_id: str, heartbeat: Heartbeat, authorization: str = Head
     check_device_token(authorization)
     db = database()
     db.nodes.update_one(
-        {"_id": node_id}, {"$set": {"last_seen": now_iso(), "live_view": heartbeat.live_view}}, upsert=True
+        {"_id": node_id},
+        {"$set": {"last_seen": now_iso(), "live_view": heartbeat.live_view,
+                  "local_ip": heartbeat.local_ip, "local_view_key": heartbeat.local_view_key}},
+        upsert=True,
     )
     # The camera applies these, so dashboard changes reach it within one heartbeat.
     return {"status": "ok", "settings": read_settings(db)}
@@ -133,4 +139,21 @@ def get_events(limit: int = 50):
 @app.get("/api/nodes", dependencies=[Depends(current_user)])
 def get_nodes():
     rows = database().nodes.find().sort("_id", ASCENDING)
-    return [{"node_id": row["_id"], "last_seen": row["last_seen"], "live_view": bool(row.get("live_view"))} for row in rows]
+    return [
+        {
+            "node_id": row["_id"],
+            "last_seen": row["last_seen"],
+            "live_view": bool(row.get("live_view")),
+            "local_ip": row.get("local_ip") or "",
+            "local_view_url": local_view_url(row),
+        }
+        for row in rows
+    ]
+
+
+def local_view_url(row):
+    """The camera's own video page, reachable only from its Wi-Fi network."""
+    ip, key = row.get("local_ip"), row.get("local_view_key")
+    if not ip or not key or not all(part.isdigit() for part in ip.split(".")):
+        return ""
+    return f"http://{ip}/?key={key}"
