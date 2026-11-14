@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { LOW_STOCK } from "@/lib/api";
 import { useShelfEye } from "./DataProvider";
 import {
-  ActivityIcon, BoxIcon, CameraIcon, LogOutIcon, Logo, OverviewIcon, SettingsIcon, SidebarCollapseIcon, SidebarExpandIcon,
+  ActivityIcon, BoxIcon, CameraIcon, ChatIcon, LogOutIcon, Logo, OverviewIcon, SettingsIcon, SidebarCollapseIcon, SidebarExpandIcon,
 } from "./Icons";
 
 const NAV = [
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/inventory", label: "Inventory", icon: BoxIcon },
   { href: "/activity", label: "Activity", icon: ActivityIcon },
   { href: "/cameras", label: "Cameras", icon: CameraIcon },
+  { href: "/chat", label: "Chat", icon: ChatIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
@@ -24,6 +25,7 @@ const PAGE_INFO: Record<string, { title: string; subtitle: string }> = {
   "/inventory": { title: "Inventory", subtitle: "Every product the cameras can see" },
   "/activity": { title: "Activity", subtitle: "Items taken and added, as the cameras saw them" },
   "/cameras": { title: "Cameras", subtitle: "Your shelf cameras and live view" },
+  "/chat": { title: "Chat", subtitle: "Ask about your stock in plain language" },
   "/settings": { title: "Settings", subtitle: "Shelves and your account" },
 };
 

@@ -119,6 +119,13 @@ export function knownCameras(data: DashboardData) {
   return [...new Set([...data.nodes.map((n) => n.node_id), ...data.inventory.map((r) => r.node_id)])].sort();
 }
 
+/** One turn in the Chat assistant conversation. */
+export type ChatMessage = { role: "user" | "assistant"; content: string };
+
+/** Ask the inventory assistant. Sends the conversation so far; returns its reply. */
+export const sendChat = (messages: ChatMessage[]) =>
+  postJson<{ reply: string }>("/api/assistant/chat", { messages }).then((r) => r.reply);
+
 export const fetchMe = () => getJson<User>("/api/auth/me");
 export const login = (email: string, password: string) => postJson<User>("/api/auth/login", { email, password });
 export const register = (name: string, email: string, password: string) =>

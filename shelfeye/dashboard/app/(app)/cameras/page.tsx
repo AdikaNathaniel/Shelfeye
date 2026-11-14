@@ -63,9 +63,6 @@ export default function CamerasPage() {
                   <a className="btn" href={n.local_view_url} target="_blank" rel="noopener noreferrer">
                     <VideoIcon size={16} /> Fast local view (same Wi-Fi) ↗
                   </a>
-                  <div className="row-sub">
-                    Local address {n.local_ip}. Much less delay, but only works on the camera&apos;s Wi-Fi network.
-                  </div>
                 </div>
               )}
             </div>

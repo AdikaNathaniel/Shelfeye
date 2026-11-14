@@ -3,3 +3,4 @@ uvicorn
 websockets  # lets uvicorn accept the cameras' live-view WebSockets
 requests
 pymongo
+openai  # the Chat assistant (server-side only; uses OPENAI_API_KEY)

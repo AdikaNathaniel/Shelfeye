@@ -34,6 +34,9 @@ export const ActivityIcon = (p: IconProps) => (
 export const CameraIcon = (p: IconProps) => (
   <Icon {...p}><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13.5" r="3.5" /></Icon>
 );
+export const ChatIcon = (p: IconProps) => (
+  <Icon {...p}><path d="M21 11.5a8 8 0 0 1-11.5 7.2L4 20.5l1.8-5.5A8 8 0 1 1 21 11.5z" /><path d="M8.5 11.5h7M8.5 14.5h4" /></Icon>
+);
 export const AlertIcon = (p: IconProps) => (
   <Icon {...p}><path d="M10.3 4.2 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z" /><path d="M12 9.5v4" /><path d="M12 17h.01" /></Icon>
 );

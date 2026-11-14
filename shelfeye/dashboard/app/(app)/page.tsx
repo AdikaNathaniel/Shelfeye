@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { LOW_STOCK, isReporting, isToday, stockLevel, timeAgo } from "@/lib/api";
 import { useShelfEye, useShelfName } from "@/components/DataProvider";
-import { AlertIcon, ArrowDownIcon, BoxIcon, CameraIcon, CheckIcon, ChevronRightIcon, ActivityIcon, VideoIcon } from "@/components/Icons";
-import LiveView from "@/components/LiveView";
+import { AlertIcon, ArrowDownIcon, BoxIcon, CameraIcon, CheckIcon, ChevronRightIcon, ActivityIcon } from "@/components/Icons";
 import { EmptyState, EventList, StatCard, StockPill } from "@/components/ui";
 
 function greeting() {
@@ -15,7 +13,6 @@ function greeting() {
 
 export default function OverviewPage() {
   const { user, data } = useShelfEye();
-  const [liveNode, setLiveNode] = useState<string | null>(null);
   const shelfName = useShelfName();
   const firstName = user.name.split(/\s+/)[0];
 
@@ -98,41 +95,6 @@ export default function OverviewPage() {
           </div>
         </section>
       </div>
-
-      <section className="card">
-        <div className="card-head">
-          <div>
-            <h2>Shelf cameras</h2>
-            <p>{nodes.length ? `${reporting} of ${nodes.length} reporting` : "No cameras connected yet"}</p>
-          </div>
-          <Link href="/cameras" className="link">Manage <ChevronRightIcon size={15} /></Link>
-        </div>
-        <div className="card-body">
-          {data && !nodes.length && (
-            <EmptyState icon={<CameraIcon />} title="No cameras yet">
-              Set up a ShelfEye camera with the setup guide. It appears here after its first check-in.
-            </EmptyState>
-          )}
-          <div className="camera-strip">
-            {nodes.map((n) => (
-              <div key={n.node_id} className="camera-mini">
-                <span className={`dot ${isReporting(n) ? "" : "stale"}`} />
-                <div className="row-main">
-                  <div className="row-title">{shelfName(n.node_id)}</div>
-                  <div className="row-sub">Last seen {timeAgo(n.last_seen)}</div>
-                </div>
-                {n.live_view && (
-                  <button className="btn btn-soft" onClick={() => setLiveNode(n.node_id)}>
-                    <VideoIcon size={16} /> Live
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {liveNode && <LiveView key={liveNode} nodeId={liveNode} onClose={() => setLiveNode(null)} />}
     </>
   );
 }

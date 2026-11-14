@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from pymongo import ASCENDING, DESCENDING, UpdateOne
 from pymongo.errors import PyMongoError
 
+from assistant import router as assistant_router
 from auth import check_device_token, current_user, router as auth_router
 from db import api_doc, database
 from live import router as live_router
@@ -56,6 +57,7 @@ app.include_router(shelves_router)
 app.include_router(settings_router)
 app.include_router(live_router)
 app.include_router(password_reset_router)
+app.include_router(assistant_router)
 
 
 @app.exception_handler(PyMongoError)
